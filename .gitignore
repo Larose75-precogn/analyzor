@@ -1,0 +1,12 @@
+venv/
+__pycache__/
+*.pyc
+*.bak
+*.001
+*.old
+
+# Compte de service Google (accès Drive) — secret, jamais public.
+gdrive-service-account.json
+
+# Copie d'un vrai classeur client — pas public.
+test_copro.xlsx
