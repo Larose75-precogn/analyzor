@@ -1,0 +1,33 @@
+{
+  "_meta": "Source unique de vérité folder/repo -> orgId. Lu par /home/ubuntu/.shared-git-hooks/post-commit ET par /home/ubuntu/.claude/commands/rep.md. Toute nouvelle org ou tout nouveau dossier technique s'ajoute ICI seulement, jamais dans les deux fichiers séparément.",
+  "folder_to_org": {
+    "structory-subscriptions": "structory",
+    "structory-ledger-online": "structory",
+    "structory-site": "structory",
+    "precogn": "precogn",
+    "compta-copro": "copro_1crE1G2RerFeXQfHNh0yERfvfAjVKGUz53LE9szCqMMs",
+    "noad": "noad",
+    "analyzor": "outils",
+    "ledger_api": "outils",
+    "subscriptions_api": "outils",
+    "sheettocsv": "sheettocsv",
+    "sheettojournal": "sheettojournal",
+    "bibliotheque": "bibliotheque",
+    "communicator-structory": "communicator-structory",
+    "mergesheet": "mergesheet",
+    "navigator": "navigator",
+    "sheet-updater": "sheet-updater",
+    "precogn-monitoring": "precogn-monitoring"
+  },
+  "technical_org_ids": [
+    "outils",
+    "sheettocsv",
+    "sheettojournal",
+    "bibliotheque",
+    "communicator-structory",
+    "mergesheet",
+    "navigator",
+    "sheet-updater",
+    "precogn-monitoring"
+  ]
+}
