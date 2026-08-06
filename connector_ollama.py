@@ -21,9 +21,9 @@ DEFAULT_EMBED_MODEL = "nomic-embed-text"
 TIMEOUT = 120  # secondes — les modèles locaux peuvent être lents au premier appel
 
 
-def _post(endpoint: str, body: dict) -> dict:
+def _post(endpoint: str, body: dict, timeout: int = TIMEOUT) -> dict:
     try:
-        r = requests.post(f"{OLLAMA_URL}{endpoint}", json=body, timeout=TIMEOUT)
+        r = requests.post(f"{OLLAMA_URL}{endpoint}", json=body, timeout=timeout)
         r.raise_for_status()
         return r.json()
     except requests.Timeout:
@@ -77,6 +77,9 @@ def generate(payload: dict) -> dict:
       - prompt  (str)  : obligatoire
       - model   (str)  : optionnel, défaut DEFAULT_CHAT_MODEL
       - options (dict) : optionnel
+      - timeout (int)  : optionnel, défaut TIMEOUT (120s) — à réduire pour un appelant qui a
+        un budget de temps strict (ex. Communicator, voir understand.py::_call_ollama, retour
+        de Stéphane 2026-08-03 : "5 secondes max").
     """
     prompt = payload.get("prompt")
     if not prompt:
@@ -87,7 +90,7 @@ def generate(payload: dict) -> dict:
     if payload.get("options"):
         body["options"] = payload["options"]
 
-    data = _post("/api/generate", body)
+    data = _post("/api/generate", body, timeout=payload.get("timeout", TIMEOUT))
     if "success" in data:
         return data
     return {"success": True, "content": data.get("response") or "", "model": data.get("model") or model}
