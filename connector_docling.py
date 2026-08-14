@@ -7,6 +7,7 @@ d'extraction, seul ce fichier doit changer.
 
 Interface stable exposée :
 - extract_sheets(xlsx_path) -> liste de SheetExtract
+- extract_text(file_path)   -> str  (texte brut, tous formats supportés)
 """
 
 from dataclasses import dataclass, field
@@ -75,3 +76,67 @@ def extract_sheets(xlsx_path):
         sheets.append(SheetExtract(name=group.name, index=index, tables=tables))
 
     return sheets
+
+
+def extract_text(file_path: str) -> str:
+    """Extrait le texte brut d'un document quelconque (PDF, DOCX, XLSX, CSV…).
+
+    Pour XLSX : utilise extract_sheets() et sérialise en texte tabulaire.
+    Pour les autres formats : DocumentConverter Docling → export markdown.
+    Pour CSV : lecture directe (pas besoin de Docling).
+    Retourne '' si le format n'est pas supporté ou si Docling est absent.
+    """
+    import os
+    ext = os.path.splitext(file_path)[1].lower()
+
+    # CSV : lecture directe
+    if ext == '.csv':
+        try:
+            with open(file_path, encoding='utf-8', errors='replace') as f:
+                return f.read(8000)
+        except Exception:
+            return ''
+
+    # XLSX : via extract_sheets
+    if ext in ('.xlsx', '.xls'):
+        try:
+            sheets = extract_sheets(file_path)
+            lines = []
+            for s in sheets:
+                lines.append(f'[Onglet: {s.name}]')
+                for t in s.tables:
+                    lines.append('\t'.join(t.headers))
+                    for row in t.rows[:200]:
+                        lines.append('\t'.join(str(c) for c in row))
+            return '\n'.join(lines)[:8000]
+        except Exception:
+            return ''
+
+    # PDF : pdftotext -layout (poppler) en priorité, Docling en fallback
+    # -layout préserve l'alignement colonnes (Débit/Crédit sur la même ligne que la description)
+    if ext == '.pdf':
+        import subprocess
+        try:
+            r = subprocess.run(['/usr/bin/pdftotext', '-layout', file_path, '-'], capture_output=True, text=True, timeout=30)
+            if r.returncode == 0 and r.stdout.strip():
+                return r.stdout[:16000]
+        except Exception:
+            pass
+        try:
+            from docling.document_converter import DocumentConverter
+            converter = DocumentConverter()
+            result = converter.convert(file_path)
+            return result.document.export_to_markdown()[:8000]
+        except Exception:
+            return ''
+
+    # DOCX et autres : Docling DocumentConverter générique
+    try:
+        from docling.document_converter import DocumentConverter
+        converter = DocumentConverter()
+        result = converter.convert(file_path)
+        return result.document.export_to_markdown()[:8000]
+    except ImportError:
+        return ''
+    except Exception:
+        return ''

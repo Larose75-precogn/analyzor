@@ -231,6 +231,15 @@ def _summarize_bricks(bricks: list) -> str:
 # exemples désormais résolus depuis ce dict, un module absent retombe sur un cadrage neutre qui
 # s'appuie uniquement sur bricks_summary (jamais un silence total, jamais un mauvais cadrage).
 _MODULE_FRAMING = {
+    'structory_compta': (
+        "Tu es l'assistant Structory (jamais \"PreCogn\" — c'est le nom de la plateforme, pas "
+        "de cet assistant) : comptabilité en partie double d'une société, ledger-cli, PCG français.",
+        'Exemples :\n'
+        '- "balance" / "ma balance" → query balance\n'
+        '- "situation du compte 512" / "compte banque" → query balance filters:["512"]\n'
+        '- "mes dépenses ce mois" → query balance filters:["6"] beginDate:{year}/01/01\n'
+        '- "j\'ai payé 45€ de fournitures" → add_entry libelle:"Fournitures" montant:45 sens:"depense"\n'
+    ),
     'compta_copro': (
         "Tu es l'assistant PreCogn d'une copropriété (comptabilité ledger-cli, PCG français).",
         'Comptes PCG courants : 601=eau, 602=élec, 611=entretien, 615=travaux, 616=assurance, 622=frais bancaires, 701=appel fonds\n\n'
@@ -314,7 +323,10 @@ def _call_llmprecogn(prompt: str) -> tuple[str | None, str | None]:
     Retourne (content, provider)."""
     result = connector_llmprecogn.analyse({
         "task": {"mission": prompt, "language": "fr"},
-        "context": "Tu es un assistant comptable PreCogn. Réponds en JSON uniquement.",
+        # Pas de nom d'assistant ici (le vrai nom vient de _MODULE_FRAMING dans le prompt
+        # lui-même, spécifique à l'org — 2026-08-12, retour de Stéphane : l'assistant se
+        # présentait comme "PreCogn" pour Structory, jamais "Structory").
+        "context": "Réponds en JSON uniquement, en français.",
     })
     if result.get("success") and result.get("content"):
         return result["content"], result.get("provider")
@@ -598,6 +610,47 @@ def _execute_query(org_id: str, parsed: dict) -> str:
         return f'\u274c Erreur ledger : {e}'
 
 
+# ── Communicator Structory dédié : extraction déterministe d'écriture ──────────
+# (2026-08-11, retour de Stéphane : "le communicator ne sert vraiment à rien... il faut
+# l'adapter par un communicator structory dédié qui va être adapté en fonction des fonctions
+# ledger-cli" — le LLM extrait souvent CORRECTEMENT montant/sens/libellé mais décide parfois,
+# de son propre chef, de "discuter" (demander une confirmation bizarre) au lieu de s'engager
+# sur intent="add_entry" — observé en usage réel : deux appels avec le MÊME message donnant
+# des comportements différents. Une écriture reconnaissable ne doit jamais dépendre du hasard
+# d'un tirage LLM — seul le vrai flou de langage libre reste géré par le LLM.
+
+_MONTANT_RE = re.compile(r'(\d+(?:[.,]\d+)?)\s*(?:€|eur\b|euros?\b|eurios?\b)', re.IGNORECASE)
+_DEPENSE_KEYWORDS = ('payé', 'paye', 'dépensé', 'depense', 'acheté', 'achete', 'achat',
+                      'resto', 'restaurant', 'réglé', 'regle', 'facture reçue')
+_RECETTE_KEYWORDS = ('reçu', 'recu', 'encaissé', 'encaisse', 'vendu', 'vente',
+                      'facturé', 'facture client', 'règlement client', 'reglement client')
+_STRIP_WORDS = ('a comptabiliser', 'à comptabiliser', 'ce jour', "aujourd'hui", 'stp', 'svp')
+
+
+def _extract_deterministic_entry(message):
+    """Reconnaît une écriture depuis du langage libre SANS appeler le LLM — retourne None si
+    aucun montant n'est identifiable (pas assez fiable pour trancher sans LLM dans ce cas)."""
+    m = _MONTANT_RE.search(message)
+    if not m:
+        return None
+    montant = float(m.group(1).replace(',', '.'))
+
+    lower = message.lower()
+    is_recette = any(kw in lower for kw in _RECETTE_KEYWORDS)
+    is_depense = any(kw in lower for kw in _DEPENSE_KEYWORDS)
+    # Répli par défaut sur "depense" (cas le plus fréquent en usage réel) plutôt que de
+    # retourner None — mieux vaut une dépense proposée (et corrigible) qu'une non-reconnaissance.
+    sens = 'recette' if (is_recette and not is_depense) else 'depense'
+
+    libelle = _MONTANT_RE.sub('', message)
+    for kw in _STRIP_WORDS:
+        libelle = re.sub(re.escape(kw), '', libelle, flags=re.IGNORECASE)
+    libelle = re.sub(r'\s+', ' ', libelle).strip(' ,.-')
+    libelle = (libelle[0].upper() + libelle[1:]) if libelle else 'Écriture'
+
+    return {'intent': 'add_entry', 'libelle': libelle, 'montant': montant, 'sens': sens}
+
+
 # ── Point d'entrée ─────────────────────────────────────────────────────────────
 
 def understand(org_id: str, message: str,
@@ -653,6 +706,41 @@ def understand(org_id: str, message: str,
                 return {'intent': 'batch_entries', 'entries': entries,
                         'response': f'\U0001f4c4 {len(entries)} écriture(s) détectée(s) dans le document.'}
 
+    # Contournement déterministe pour "solde <compte>" (2026-08-06, retour de Stéphane :
+    # démo critique cassée par une classification LLM non-déterministe — parfois "query",
+    # parfois "unclear"/"answer" pour un message identique). Même famille de correctif que
+    # "ecriture ..."/"configure email ..." côté Communicator : un motif sans ambiguïté ne doit
+    # jamais dépendre du hasard d'un tirage LLM. Ne couvre QUE ce motif précis, le reste de la
+    # compréhension libre reste géré par le LLM comme avant.
+    m_solde = re.match(r"^\s*solde\s+(?:du\s+compte\s+)?(\S+)", message, re.IGNORECASE)
+    if m_solde:
+        compte = m_solde.group(1).split(':', 1)[0]
+        parsed = {'intent': 'query', 'command': 'balance', 'filters': [compte]}
+        parsed['response'] = _execute_query(org_id, parsed)
+        return parsed
+
+    # Commandes ledger-cli sans ambiguïté (même raison que "solde <compte>" ci-dessus : ne jamais
+    # laisser un mot-clé exact au hasard du LLM). "balance"/"bilan"/"situation" → balance globale ;
+    # "journal"/"register"/"écritures" → register global.
+    msg_norm = message.strip().lower()
+    if msg_norm in ('balance', 'bilan', 'situation', 'solde', 'soldes', 'solde général', 'solde general'):
+        parsed = {'intent': 'query', 'command': 'balance', 'filters': []}
+        parsed['response'] = _execute_query(org_id, parsed)
+        return parsed
+    if msg_norm in ('journal', 'register', 'écritures', 'ecritures', 'toutes les écritures', 'toutes les ecritures'):
+        parsed = {'intent': 'query', 'command': 'register', 'filters': []}
+        parsed['response'] = _execute_query(org_id, parsed)
+        return parsed
+
+    # Communicator Structory dédié : extraction déterministe d'écriture, jamais le LLM libre
+    # (voir _extract_deterministic_entry ci-dessus) — scopé au module structory_compta pour
+    # l'instant, pas aux autres modules (compta_copro a déjà ses propres flux dédiés :
+    # handleAppelFondsEmail, handleSetIban).
+    if module == 'structory_compta':
+        det_entry = _extract_deterministic_entry(message)
+        if det_entry:
+            return det_entry
+
     prompt = _build_prompt(message, bricks_sum, last_message, document_text, module)
 
     # LLMPrecogn (cloud, Groq) en premier, Ollama local en repli (retour de Stéphane, 2026-08-03
@@ -662,6 +750,17 @@ def understand(org_id: str, message: str,
     if raw is None:
         raw, provider = _call_ollama(prompt)
     parsed = _parse_json(raw)
+
+    # Défense en profondeur (2026-08-11, retour de Stéphane : le Communicator a ignoré une
+    # écriture complète — "depense restaurant 120 eurios..." — en répondant une question
+    # générique). Le LLM extrait souvent CORRECTEMENT libelle/montant/sens mais les place sous
+    # intent="query" + command="add_entry" au lieu de intent="add_entry" directement (confusion
+    # entre les deux formats du prompt). Ne jamais perdre une écriture bien identifiée à cause
+    # d'un mauvais rangement du LLM — on la reconnaît à sa forme, pas seulement au champ intent.
+    if (parsed.get('intent') == 'query' and parsed.get('command') == 'add_entry'
+            and parsed.get('montant') is not None and parsed.get('sens')):
+        parsed['intent'] = 'add_entry'
+        parsed.pop('command', None)
 
     intent = parsed.get('intent', 'unclear')
 

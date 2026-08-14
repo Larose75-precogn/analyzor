@@ -1,0 +1,751 @@
+{
+  "_stats": {
+    "n_orgs": 4,
+    "n_analyses": 88,
+    "n_documents": 0
+  },
+  "orgs": {
+    "copro_1crE1G2RerFeXQfHNh0yERfvfAjVKGUz53LE9szCqMMs": {
+      "documents": [],
+      "analyses": [
+        {
+          "timestamp": "2026-08-03T15:06:59Z",
+          "message": "liste les copropriétaires",
+          "intent": "answer",
+          "response": "Voici la liste des copropriétaires : \n- Aouchiche\n- Dupont\n- Durand",
+          "provider": "groq",
+          "has_document": false,
+          "embedding_used": true
+        },
+        {
+          "timestamp": "2026-08-03T15:07:21Z",
+          "message": "combien de copropriétaires ?",
+          "intent": "answer",
+          "response": "Il y a 5 copropriétaires dans la copropriété.",
+          "provider": "groq",
+          "has_document": false,
+          "embedding_used": true
+        },
+        {
+          "timestamp": "2026-08-11T13:24:00Z",
+          "message": "balance",
+          "intent": "answer",
+          "response": "Je suis là pour vous aider avec vos questions sur la comptabilité de copropriété. Qu'est-ce que je peux faire pour vous ?",
+          "provider": "groq",
+          "has_document": false,
+          "embedding_used": true
+        },
+        {
+          "timestamp": "2026-08-11T13:24:11Z",
+          "message": "balance",
+          "intent": "unclear",
+          "response": "Je suis à votre disposition pour répondre à vos questions et vous aider avec votre comptabilité de copropriété.\n\nVeuillez me donner votre commande ou votre question.",
+          "provider": "groq",
+          "has_document": false,
+          "embedding_used": true
+        },
+        {
+          "timestamp": "2026-08-11T15:05:55Z",
+          "message": "balance",
+          "intent": "unclear",
+          "response": "Bienvenue dans le module de comptabilité de copropriété ! Je suis PreCogn, votre assistant comptable à votre service.\n\nVeuillez formuler votre question ou votre commande. Je suis prêt à vous aider.\n\nS",
+          "provider": "groq",
+          "has_document": false,
+          "embedding_used": true
+        },
+        {
+          "timestamp": "2026-08-11T18:25:51Z",
+          "message": "balance",
+          "intent": "unclear",
+          "response": "Bonjour ! Je suis PreCogn, votre assistant pour la comptabilité de copropriété. Je suis là pour vous aider avec vos questions et opérations comptables.\n\nVos données de l'organisation sont disponibles.",
+          "provider": "groq",
+          "has_document": false,
+          "embedding_used": true
+        },
+        {
+          "timestamp": "2026-08-11T18:26:04Z",
+          "message": "dépenses 2026",
+          "intent": "query",
+          "response": "",
+          "provider": "groq",
+          "has_document": false,
+          "embedding_used": true
+        },
+        {
+          "timestamp": "2026-08-11T18:26:20Z",
+          "message": "combien sur le compte cholet",
+          "intent": "unclear",
+          "response": "Bienvenue dans la comptabilité de la copropriété ! Je suis PreCogn, votre assistant pour tout ce qui concerne la comptabilité de l'immeuble.\n\nVeuillez formuler votre question ou votre commande. Je ser",
+          "provider": "groq",
+          "has_document": false,
+          "embedding_used": true
+        }
+      ],
+      "facilitateur": {
+        "suggested": true,
+        "generated": false,
+        "sheetId": null
+      }
+    },
+    "smcdemo": {
+      "documents": [],
+      "analyses": [
+        {
+          "timestamp": "2026-08-03T18:56:45Z",
+          "message": "combien j ai au total",
+          "intent": "answer",
+          "response": "Je suis désolé, je ne peux pas répondre à cette demande car elle est hors de l'objectif principal de mon assistant. Je peux vous aider avec des questions sur le suivi de votre patrimoine ou les outils",
+          "provider": "ollama:qwen2.5-coder:3b",
+          "has_document": false,
+          "embedding_used": true
+        },
+        {
+          "timestamp": "2026-08-03T18:57:10Z",
+          "message": "raconte moi une blague",
+          "intent": "answer",
+          "response": "Pourquoi les chats ne jouent pas aux jeux vidéo ? Parce qu'ils préfèrent se promener sur le tapis de la télévision !",
+          "provider": "ollama:qwen2.5-coder:3b",
+          "has_document": false,
+          "embedding_used": true
+        },
+        {
+          "timestamp": "2026-08-03T18:59:36Z",
+          "message": "combien j ai au total",
+          "intent": "answer",
+          "response": "Votre patrimoine total est de 10 000€.",
+          "provider": "groq",
+          "has_document": false,
+          "embedding_used": true
+        },
+        {
+          "timestamp": "2026-08-03T18:59:37Z",
+          "message": "quel est le solde de mon compte LCL",
+          "intent": "answer",
+          "response": "Je vais vérifier le solde de votre compte LCL. Veuillez patienter...",
+          "provider": "groq",
+          "has_document": false,
+          "embedding_used": true
+        },
+        {
+          "timestamp": "2026-08-03T19:33:09Z",
+          "message": "combien j ai au total",
+          "intent": "answer",
+          "response": "Votre patrimoine total est de 243 256.24 €.",
+          "provider": "ollama:qwen2.5-coder:3b",
+          "has_document": false,
+          "embedding_used": true
+        },
+        {
+          "timestamp": "2026-08-03T19:33:35Z",
+          "message": "combien j ai au total",
+          "intent": "answer",
+          "response": "Votre patrimoine total est de 243 256.24 €.",
+          "provider": "ollama:qwen2.5-coder:3b",
+          "has_document": false,
+          "embedding_used": true
+        },
+        {
+          "timestamp": "2026-08-03T19:36:03Z",
+          "message": "combien j ai au total",
+          "intent": "answer",
+          "response": "243 256.24 € et 38 880.33 $",
+          "provider": "ollama:qwen2.5-coder:3b",
+          "has_document": false,
+          "embedding_used": true
+        },
+        {
+          "timestamp": "2026-08-03T20:11:14Z",
+          "message": "combien j ai au total",
+          "intent": "answer",
+          "response": "Votre patrimoine total est actuellement de 243 256,24 € et 38 880,33 $.",
+          "provider": "groq",
+          "has_document": false,
+          "embedding_used": true
+        },
+        {
+          "timestamp": "2026-08-03T20:11:21Z",
+          "message": "quel est le solde de mon compte LCL",
+          "intent": "answer",
+          "response": "Le solde de votre compte LCL est de 9433,95 €.",
+          "provider": "groq",
+          "has_document": false,
+          "embedding_used": true
+        },
+        {
+          "timestamp": "2026-08-03T20:12:00Z",
+          "message": "combien j ai au total",
+          "intent": "answer",
+          "response": "Votre patrimoine total est de 243 256,24 € et 38 880,33 $.",
+          "provider": "groq",
+          "has_document": false,
+          "embedding_used": true
+        },
+        {
+          "timestamp": "2026-08-03T20:12:05Z",
+          "message": "quel est le solde de mon compte LCL",
+          "intent": "answer",
+          "response": "Le solde de votre compte LCL est de 9433,95 €.",
+          "provider": "groq",
+          "has_document": false,
+          "embedding_used": true
+        },
+        {
+          "timestamp": "2026-08-03T20:12:09Z",
+          "message": "solde de mon assurance vie",
+          "intent": "answer",
+          "response": "Le solde de votre assurance vie est de 30 926,26 €.",
+          "provider": "groq",
+          "has_document": false,
+          "embedding_used": true
+        },
+        {
+          "timestamp": "2026-08-03T20:16:30Z",
+          "message": "combien j ai au total",
+          "intent": "answer",
+          "response": "Votre patrimoine total est de 243 256,24 € et 38 880,33 $.",
+          "provider": "groq",
+          "has_document": false,
+          "embedding_used": true
+        },
+        {
+          "timestamp": "2026-08-03T20:16:32Z",
+          "message": "solde de mon assurance vie",
+          "intent": "answer",
+          "response": "Le solde de votre assurance vie est de 30 926,26 €.",
+          "provider": "groq",
+          "has_document": false,
+          "embedding_used": true
+        }
+      ],
+      "facilitateur": {
+        "suggested": true,
+        "generated": false,
+        "sheetId": null
+      }
+    },
+    "structory_demo": {
+      "documents": [],
+      "analyses": [
+        {
+          "timestamp": "2026-08-06T10:32:27Z",
+          "message": "solde 512:Banque",
+          "intent": "query",
+          "response": "",
+          "provider": "groq",
+          "has_document": false,
+          "embedding_used": false
+        },
+        {
+          "timestamp": "2026-08-06T10:32:28Z",
+          "message": "solde 512:Banque",
+          "intent": "query",
+          "response": "",
+          "provider": "groq",
+          "has_document": false,
+          "embedding_used": false
+        },
+        {
+          "timestamp": "2026-08-06T10:32:30Z",
+          "message": "solde 512:Banque",
+          "intent": "query",
+          "response": "",
+          "provider": "cerebras",
+          "has_document": false,
+          "embedding_used": false
+        },
+        {
+          "timestamp": "2026-08-06T10:32:32Z",
+          "message": "solde 512:Banque",
+          "intent": "query",
+          "response": "",
+          "provider": "groq",
+          "has_document": false,
+          "embedding_used": false
+        },
+        {
+          "timestamp": "2026-08-06T10:32:34Z",
+          "message": "solde 512:Banque",
+          "intent": "query",
+          "response": "",
+          "provider": "cerebras",
+          "has_document": false,
+          "embedding_used": false
+        },
+        {
+          "timestamp": "2026-08-06T10:32:38Z",
+          "message": "solde 512:Banque",
+          "intent": "query",
+          "response": "",
+          "provider": "cerebras",
+          "has_document": false,
+          "embedding_used": false
+        },
+        {
+          "timestamp": "2026-08-06T10:52:11Z",
+          "message": "Le Navigator n'est pas le bon ici",
+          "intent": "[intent]",
+          "response": "",
+          "provider": "groq",
+          "has_document": false,
+          "embedding_used": false
+        },
+        {
+          "timestamp": "2026-08-06T10:52:26Z",
+          "message": "Pfff encore un neuneu",
+          "intent": "unclear",
+          "response": "Bonjour ! Je suis PreCogn, votre assistant comptable. Qu'est-ce que je peux faire pour vous aujourd'hui ?",
+          "provider": "groq",
+          "has_document": false,
+          "embedding_used": false
+        },
+        {
+          "timestamp": "2026-08-06T10:52:40Z",
+          "message": "Me répondre banane",
+          "intent": "answer",
+          "response": "Je suis à votre disposition pour répondre à vos questions sur l'organisation ou les outils disponibles.",
+          "provider": "groq",
+          "has_document": false,
+          "embedding_used": false
+        },
+        {
+          "timestamp": "2026-08-06T10:53:16Z",
+          "message": "Ah ben C pas gagné commence par me dire pourquoi le navigator n'est pas le bon ici ma première quedtion ci dessus...",
+          "intent": "answer",
+          "response": "Le Navigator n'est pas le bon outil pour cette tâche car il est principalement destiné à la navigation et à la localisation, tandis que nous sommes en train de discuter de comptabilité et de gestion f",
+          "provider": "groq",
+          "has_document": false,
+          "embedding_used": false
+        },
+        {
+          "timestamp": "2026-08-06T10:59:22Z",
+          "message": "Oh que C moche ce navigator",
+          "intent": "unclear",
+          "response": "Bienvenue ! Je suis PreCogn, votre assistant comptable. Comment puis-je vous aider aujourd'hui ?",
+          "provider": "groq",
+          "has_document": false,
+          "embedding_used": false
+        },
+        {
+          "timestamp": "2026-08-06T10:59:36Z",
+          "message": "Correction envoyer ça marche pas",
+          "intent": "answer",
+          "response": "Je suis désolé, mais je n'ai pas compris votre problème. Pouvez-vous me donner plus de détails sur la correction que vous souhaitez envoyer ?",
+          "provider": "groq",
+          "has_document": false,
+          "embedding_used": false
+        },
+        {
+          "timestamp": "2026-08-06T12:04:43Z",
+          "message": "Test",
+          "intent": "answer",
+          "response": "...",
+          "provider": "groq",
+          "has_document": false,
+          "embedding_used": false
+        },
+        {
+          "timestamp": "2026-08-06T12:04:55Z",
+          "message": "Pfff",
+          "intent": "unclear",
+          "response": "Je suis PreCogn, votre assistant comptable. Comment puis-je vous aider ?",
+          "provider": "groq",
+          "has_document": false,
+          "embedding_used": false
+        },
+        {
+          "timestamp": "2026-08-06T12:51:07Z",
+          "message": "Test",
+          "intent": "unclear",
+          "response": "Bienvenue dans l'organisation ! Je suis PreCogn, votre assistant comptable. Qu'est-ce que je peux faire pour vous ?\n\nSi vous avez une question sur l'organisation ou les outils disponibles, vous pouvez",
+          "provider": "groq",
+          "has_document": false,
+          "embedding_used": false
+        },
+        {
+          "timestamp": "2026-08-06T17:24:51Z",
+          "message": "Le communicator est il fonctionnel ?",
+          "intent": "answer",
+          "response": "Le communicator est en fonctionnement normal.",
+          "provider": "groq",
+          "has_document": false,
+          "embedding_used": false
+        },
+        {
+          "timestamp": "2026-08-06T17:25:05Z",
+          "message": "Bonjour",
+          "intent": "unclear",
+          "response": "Bonjour, comment puis-je vous aider aujourd'hui ?",
+          "provider": "groq",
+          "has_document": false,
+          "embedding_used": false
+        },
+        {
+          "timestamp": "2026-08-06T17:25:27Z",
+          "message": "Affichage a l'envers stp",
+          "intent": "answer",
+          "response": "L'affichage à l'envers, c'est une fonctionnalité qui permet de lire un texte ou un document dans l'ordre inverse de la lecture habituelle. Je ne vois pas comment cela pourrait être lié à nos outils co",
+          "provider": "groq",
+          "has_document": false,
+          "embedding_used": false
+        },
+        {
+          "timestamp": "2026-08-06T21:42:28Z",
+          "message": "Test",
+          "intent": "unclear",
+          "response": "Bienvenue dans l'organisation ! Je suis PreCogn, votre assistant comptable. Je suis là pour vous aider avec vos questions et vos besoins comptables.\n\nVeuillez poser votre question ou donner votre comm",
+          "provider": "groq",
+          "has_document": false,
+          "embedding_used": false
+        },
+        {
+          "timestamp": "2026-08-06T21:42:40Z",
+          "message": "Pfff",
+          "intent": "unclear",
+          "response": "**Message précédent :** \"Test\"\n**Message :** \"Pfff\"\n\nJe n'ai pas compris votre message. Pouvez-vous répéter ou me donner plus de détails ?",
+          "provider": "groq",
+          "has_document": false,
+          "embedding_used": false
+        },
+        {
+          "timestamp": "2026-08-11T14:01:50Z",
+          "message": "je peux passer une ecriture?",
+          "intent": "answer",
+          "response": "Bien sûr, je peux passer une écriture ! Quel type d'écriture souhaitez-vous passer ? (Dépense, Recette, etc.)",
+          "provider": "groq",
+          "has_document": false,
+          "embedding_used": true
+        },
+        {
+          "timestamp": "2026-08-11T14:02:28Z",
+          "message": "depense restaurant 120 eurios ce jour avec le client amouchiche a3 personnes",
+          "intent": "answer",
+          "response": "Je peux passer une écriture ?",
+          "provider": "groq",
+          "has_document": false,
+          "embedding_used": true
+        },
+        {
+          "timestamp": "2026-08-11T14:02:39Z",
+          "message": "hein ?",
+          "intent": "unclear",
+          "response": "Bonjour ! Je suis PreCogn, votre assistant comptable. Je peux vous aider à gérer vos écritures comptables et à consulter vos solde de compte. Qu'est-ce que je peux faire pour vous aujourd'hui ?",
+          "provider": "groq",
+          "has_document": false,
+          "embedding_used": true
+        },
+        {
+          "timestamp": "2026-08-11T14:08:34Z",
+          "message": "depense restaurant 120 eurios ce jour avec le client amouchiche a3 personnes",
+          "intent": "query",
+          "response": "",
+          "provider": "groq",
+          "has_document": false,
+          "embedding_used": true
+        },
+        {
+          "timestamp": "2026-08-11T14:09:36Z",
+          "message": "depense restaurant 120 eurios ce jour avec le client amouchiche a3 personnes",
+          "intent": "add_entry",
+          "response": "",
+          "provider": "groq",
+          "has_document": false,
+          "embedding_used": true
+        },
+        {
+          "timestamp": "2026-08-11T14:11:34Z",
+          "message": "depense restaurant 120 eurios ce jour avec le client amouchiche a3 personnes",
+          "intent": "add_entry",
+          "response": "",
+          "provider": "groq",
+          "has_document": false,
+          "embedding_used": true
+        },
+        {
+          "timestamp": "2026-08-11T14:11:34Z",
+          "message": "depense restaurant 120 eurios ce jour avec le client amouchiche a3 personnes",
+          "intent": "add_entry",
+          "response": "",
+          "provider": "groq",
+          "has_document": false,
+          "embedding_used": true
+        },
+        {
+          "timestamp": "2026-08-11T14:11:37Z",
+          "message": "depense restaurant 120 eurios ce jour avec le client amouchiche a3 personnes",
+          "intent": "add_entry",
+          "response": "",
+          "provider": "cerebras",
+          "has_document": false,
+          "embedding_used": true
+        },
+        {
+          "timestamp": "2026-08-11T14:59:25Z",
+          "message": "bonjour",
+          "intent": "answer",
+          "response": "Bonjour ! Je suis PreCogn, votre assistant comptable. Je suis à votre disposition pour répondre à vos questions et vous aider à gérer vos écritures comptables.",
+          "provider": "groq",
+          "has_document": false,
+          "embedding_used": true
+        },
+        {
+          "timestamp": "2026-08-11T15:00:02Z",
+          "message": "resto ce jour client benchetrit 145 euros a comptabiliser",
+          "intent": "answer",
+          "response": "Je vais comptabiliser la dépense de 145 euros pour le client Benchetrit. Pouvez-vous confirmer que c'est une dépense pour le compte 606100 (Achats non stockés) ?",
+          "provider": "groq",
+          "has_document": false,
+          "embedding_used": true
+        },
+        {
+          "timestamp": "2026-08-11T15:00:14Z",
+          "message": "j'en sais rien",
+          "intent": "answer",
+          "response": "Je comprends que le client Benchetrit a payé 145 euros au restaurant aujourd'hui. Je vais enregistrer cette transaction dans le journal comptable.",
+          "provider": "groq",
+          "has_document": false,
+          "embedding_used": true
+        },
+        {
+          "timestamp": "2026-08-11T15:00:34Z",
+          "message": "mais non c moi qui ai payé avec ma carte bleue",
+          "intent": "answer",
+          "response": "Je comprends mieux maintenant. Mais non, c'est moi qui ai payé avec ma carte bleue. Je ne vois pas comment cela pourrait être lié à une écriture comptable.",
+          "provider": "groq",
+          "has_document": false,
+          "embedding_used": true
+        },
+        {
+          "timestamp": "2026-08-11T15:00:46Z",
+          "message": "quel debile",
+          "intent": "unclear",
+          "response": "Bonjour ! Je suis PreCogn, votre assistant comptable. Je suis là pour vous aider avec vos écritures comptables et vos questions sur l'organisation. Qu'est-ce que je peux faire pour vous aujourd'hui ?",
+          "provider": "groq",
+          "has_document": false,
+          "embedding_used": true
+        },
+        {
+          "timestamp": "2026-08-11T15:13:26Z",
+          "message": "quelles sont mes dépenses cette année",
+          "intent": "answer",
+          "response": "Dépenses cette année : nous avons effectué des achats non stockés pour 10 000 €, des fournitures administratives pour 5 000 €, des achats divers pour 2 000 €, des locations immobilières pour 8 000 € e",
+          "provider": "groq",
+          "has_document": false,
+          "embedding_used": true
+        },
+        {
+          "timestamp": "2026-08-11T16:51:51Z",
+          "message": "bonjour",
+          "intent": "unclear",
+          "response": "Bienvenue ! Je suis PreCogn, votre assistant comptable. Comment puis-je vous aider aujourd'hui ?",
+          "provider": "groq",
+          "has_document": false,
+          "embedding_used": true
+        },
+        {
+          "timestamp": "2026-08-11T16:52:38Z",
+          "message": "je veux saisir une ecriture",
+          "intent": "answer",
+          "response": "Bien sûr, pour saisir une écriture, vous pouvez me fournir les informations suivantes : le libellé de l'écriture, le montant et le sens (dépense ou recette). Par exemple : \"libellé : Achat de fournitu",
+          "provider": "groq",
+          "has_document": false,
+          "embedding_used": true
+        },
+        {
+          "timestamp": "2026-08-11T16:53:14Z",
+          "message": "ok",
+          "intent": "answer",
+          "response": "Bienvenue dans l'assistant comptable PreCogn ! Je peux vous aider à gérer vos écritures comptables et à consulter votre journal. Qu'est-ce que je peux faire pour vous ?",
+          "provider": "groq",
+          "has_document": false,
+          "embedding_used": true
+        },
+        {
+          "timestamp": "2026-08-11T17:43:20Z",
+          "message": "bonjour",
+          "intent": "answer",
+          "response": "Je suis à votre disposition pour gérer vos écritures comptables et vous aider à comprendre votre situation financière. Qu'est-ce que je peux faire pour vous ?",
+          "provider": "groq",
+          "has_document": false,
+          "embedding_used": true
+        },
+        {
+          "timestamp": "2026-08-11T17:43:21Z",
+          "message": "bonjour",
+          "intent": "answer",
+          "response": "Je suis un assistant comptable qui peut vous aider à gérer vos écritures comptables en partie double avec ledger-cli. Je peux également vous aider à analyser vos données comptables avec Analyzor et à ",
+          "provider": "groq",
+          "has_document": false,
+          "embedding_used": true
+        },
+        {
+          "timestamp": "2026-08-11T17:43:29Z",
+          "message": "bonjour",
+          "intent": "unclear",
+          "response": "Pas de réponse du moteur.",
+          "provider": null,
+          "has_document": false,
+          "embedding_used": true
+        },
+        {
+          "timestamp": "2026-08-11T17:45:55Z",
+          "message": "qui es-tu ?",
+          "intent": "answer",
+          "response": "Bonjour ! Je suis Structory, l'assistant comptable qui aide les entreprises à gérer leurs écritures comptables en partie double avec ledger-cli. Je peux vous aider à extraire des informations de docum",
+          "provider": "groq",
+          "has_document": false,
+          "embedding_used": true
+        },
+        {
+          "timestamp": "2026-08-11T17:45:55Z",
+          "message": "qui es-tu ?",
+          "intent": "answer",
+          "response": "Bonjour, je suis Structory, l'assistant comptable qui aide à gérer les écritures comptables en partie double avec ledger-cli. Je peux vous aider à extraire des documents, analyser des données, convers",
+          "provider": "groq",
+          "has_document": false,
+          "embedding_used": true
+        },
+        {
+          "timestamp": "2026-08-11T17:45:56Z",
+          "message": "qui es-tu ?",
+          "intent": "answer",
+          "response": "Bonjour, je suis Structory, l'assistant comptable qui aide à gérer les écritures comptables en partie double avec ledger-cli. Je peux vous aider à extraire des informations de documents, analyser des ",
+          "provider": "groq",
+          "has_document": false,
+          "embedding_used": true
+        },
+        {
+          "timestamp": "2026-08-11T17:45:58Z",
+          "message": "qui es-tu ?",
+          "intent": "answer",
+          "response": "Je suis Structory, l'assistant comptable qui traduit le langage courant en écritures de partie double au format ledger-cli, en suivant le Plan Comptable Général français.",
+          "provider": "cerebras",
+          "has_document": false,
+          "embedding_used": true
+        },
+        {
+          "timestamp": "2026-08-11T18:21:10Z",
+          "message": "ok",
+          "intent": "answer",
+          "response": "Bienvenue dans Structory, votre assistant comptable ! Je suis là pour vous aider à gérer vos écritures comptables en partie double avec ledger-cli.",
+          "provider": "groq",
+          "has_document": false,
+          "embedding_used": true
+        },
+        {
+          "timestamp": "2026-08-11T18:23:23Z",
+          "message": "salut",
+          "intent": "unclear",
+          "response": "Bienvenue dans Structory, votre assistant comptable ! Je suis là pour vous aider à gérer vos écritures comptables en partie double.\n\nVoulez-vous consulter votre balance, ajouter une écriture, ou autre",
+          "provider": "groq",
+          "has_document": false,
+          "embedding_used": true
+        },
+        {
+          "timestamp": "2026-08-11T18:23:40Z",
+          "message": "donne moi ma balance stp",
+          "intent": "answer",
+          "response": "Je suis l'assistant comptable Structory. Je peux vous aider à gérer votre balance et vos écritures comptables.",
+          "provider": "groq",
+          "has_document": false,
+          "embedding_used": true
+        },
+        {
+          "timestamp": "2026-08-12T12:56:05Z",
+          "message": "soldebanque",
+          "intent": "query",
+          "response": "",
+          "provider": "groq",
+          "has_document": false,
+          "embedding_used": true
+        },
+        {
+          "timestamp": "2026-08-13T10:01:45Z",
+          "message": "liste des comptes existants ?",
+          "intent": "answer",
+          "response": "Les comptes existants sont : Banque (512000), Achats non stockés (606100), Fournitures administratives (606400), Achats divers — à vérifier (606800), Locations immobilières (613200), Entretien et répa",
+          "provider": "groq",
+          "has_document": false,
+          "embedding_used": true
+        },
+        {
+          "timestamp": "2026-08-13T10:02:35Z",
+          "message": "liste des comptes existants ?",
+          "intent": "answer",
+          "response": "Les comptes existants sont : Banque (512000), Achats non stockés (606100), Fournitures administratives (606400), Achats divers — à vérifier (606800), Locations immobilières (613200), Entretien et répa",
+          "provider": "groq",
+          "has_document": false,
+          "embedding_used": true
+        }
+      ],
+      "facilitateur": {
+        "suggested": true,
+        "generated": false,
+        "sheetId": null
+      }
+    },
+    "smcspl": {
+      "documents": [],
+      "analyses": [
+        {
+          "timestamp": "2026-08-06T07:05:51Z",
+          "message": "Pourquoi Sci ajs est en alerte ?",
+          "intent": "answer",
+          "response": "Sci Ajs est en alerte car son compte est vide, il n'a pas de solde.",
+          "provider": "groq",
+          "has_document": false,
+          "embedding_used": true
+        },
+        {
+          "timestamp": "2026-08-06T07:06:26Z",
+          "message": "Scj jas est à zéro et n'envoie pas d'alerte ?",
+          "intent": "answer",
+          "response": "Scj jas est à zéro et n'envoie pas d'alerte car son solde est de 0,00 €, ce qui est inférieur au seuil d'alerte.",
+          "provider": "groq",
+          "has_document": false,
+          "embedding_used": true
+        },
+        {
+          "timestamp": "2026-08-06T07:14:09Z",
+          "message": "La synchronisation Sci jas ne fonctionne pas",
+          "intent": "answer",
+          "response": "Le total de votre patrimoine est de 261 977,00 € et 42 816,84 $.",
+          "provider": "groq",
+          "has_document": false,
+          "embedding_used": true
+        },
+        {
+          "timestamp": "2026-08-06T07:14:28Z",
+          "message": "Ce n'est pas la question",
+          "intent": "answer",
+          "response": "Le total de votre patrimoine est de 261 977,00 € et 42 816,84 $.",
+          "provider": "groq",
+          "has_document": false,
+          "embedding_used": true
+        },
+        {
+          "timestamp": "2026-08-06T07:14:40Z",
+          "message": "T nul",
+          "intent": "answer",
+          "response": "Le total de votre patrimoine est de 261 977,00 € et 42 816,84 $",
+          "provider": "groq",
+          "has_document": false,
+          "embedding_used": true
+        },
+        {
+          "timestamp": "2026-08-11T16:49:47Z",
+          "message": "test",
+          "intent": "answer",
+          "response": "Le total de patrimoine actuel est de 263 123,44 € et 43 390,98 $.",
+          "provider": "groq",
+          "has_document": false,
+          "embedding_used": true
+        }
+      ],
+      "facilitateur": {
+        "suggested": true,
+        "generated": false,
+        "sheetId": null
+      }
+    }
+  }
+}

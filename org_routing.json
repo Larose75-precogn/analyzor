@@ -1,33 +1,41 @@
 {
-  "_meta": "Source unique de vérité folder/repo -> orgId. Lu par /home/ubuntu/.shared-git-hooks/post-commit ET par /home/ubuntu/.claude/commands/rep.md. Toute nouvelle org ou tout nouveau dossier technique s'ajoute ICI seulement, jamais dans les deux fichiers séparément.",
+  "_meta": "Source unique de vérité folder/repo -> orgId. Lu par /home/ubuntu/.shared-git-hooks/post-commit ET par /home/ubuntu/.claude/commands/rep.md. Toute nouvelle org ou tout nouveau dossier technique s'ajoute ICI seulement, jamais dans les deux fichiers séparément. Deux catégories seulement : organisations (registre subscriptions_api, hiérarchie precogn > structory > compta-copro/suivre_mes_comptes) et outils (tout le reste). Tout outil non validé explicitement par Stéphane va par défaut dans _claude-utils. Corrigé le 2026-08-06 pour matcher les 10 vraies sessions OpenCode (source d'autorité pour cette catégorisation, voir ~/.local/share/opencode/opencode.db table `session`, sessions racine sans parent_id) : bibliotheque/subscriptions_api rattachés à 'outils' (n'ont pas leur propre session dédiée, contrairement à ce que ce fichier disait avant) ; ledger_api/structory-site/structory-worker rattachés à 'structory' (pas 'coeur_comptable', qui n'était pas une vraie session).",
   "folder_to_org": {
-    "structory-subscriptions": "structory",
-    "structory-ledger-online": "structory",
-    "structory-site": "structory",
+    "structory-sheets": "outils",
+    "structory": "structory",
     "precogn": "precogn",
     "compta-copro": "copro_1crE1G2RerFeXQfHNh0yERfvfAjVKGUz53LE9szCqMMs",
-    "noad": "noad",
+    "suivre_mes_comptes": "suivre_mes_comptes",
     "analyzor": "outils",
-    "ledger_api": "outils",
+    "ledger_api": "structory",
+    "structory-site": "structory",
+    "structory-worker": "structory",
+    "executor": "outils",
+    "structory-ledger-online": "_claude-utils",
+    "structory-subscriptions": "_claude-utils",
     "subscriptions_api": "outils",
     "sheettocsv": "sheettocsv",
     "sheettojournal": "sheettojournal",
-    "bibliotheque": "bibliotheque",
-    "communicator-structory": "communicator-structory",
+    "bibliotheque": "outils",
+    "communicator": "communicator",
     "mergesheet": "mergesheet",
     "navigator": "navigator",
     "sheet-updater": "sheet-updater",
-    "precogn-monitoring": "precogn-monitoring"
+    "llmprecogn": "llmprecogn",
+    "monitoring": "llmprecogn",
+    "worker": "llmprecogn",
+    "connector-mcp": "llmprecogn",
+    "_claude-utils": "_claude-utils"
   },
   "technical_org_ids": [
     "outils",
     "sheettocsv",
     "sheettojournal",
-    "bibliotheque",
-    "communicator-structory",
+    "communicator",
     "mergesheet",
     "navigator",
     "sheet-updater",
-    "precogn-monitoring"
+    "llmprecogn",
+    "_claude-utils"
   ]
 }

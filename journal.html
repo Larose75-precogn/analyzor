@@ -1,0 +1,209 @@
+<title>Journal Analyzor — SheetToJournal</title>
+<style>
+  :root {
+    --bg: #f5f4f0;
+    --ink: #20242a;
+    --muted: #6b7178;
+    --accent: #2b6e68;
+    --accent-soft: #e4eeec;
+    --rule: #dedbd3;
+    --font-serif: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, ui-serif, serif;
+    --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    --font-mono: ui-monospace, "SF Mono", "Cascadia Code", Menlo, Consolas, monospace;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #15181b;
+      --ink: #e7e5e0;
+      --muted: #9aa0a6;
+      --accent: #6fbfb6;
+      --accent-soft: #1e2c2a;
+      --rule: #2a2e32;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #15181b;
+    --ink: #e7e5e0;
+    --muted: #9aa0a6;
+    --accent: #6fbfb6;
+    --accent-soft: #1e2c2a;
+    --rule: #2a2e32;
+  }
+  :root[data-theme="light"] {
+    --bg: #f5f4f0;
+    --ink: #20242a;
+    --muted: #6b7178;
+    --accent: #2b6e68;
+    --accent-soft: #e4eeec;
+    --rule: #dedbd3;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--font-sans);
+    line-height: 1.55;
+    margin: 0;
+    padding: 0 20px 96px;
+  }
+
+  main {
+    max-width: 640px;
+    margin: 0 auto;
+  }
+
+  header.masthead {
+    padding: 56px 0 28px;
+    border-bottom: 1px solid var(--rule);
+    margin-bottom: 8px;
+  }
+
+  header.masthead .kicker {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+    color: var(--accent);
+  }
+
+  header.masthead h1 {
+    font-family: var(--font-serif);
+    font-weight: 600;
+    font-size: 34px;
+    margin: 10px 0 8px;
+    text-wrap: balance;
+  }
+
+  header.masthead p {
+    color: var(--muted);
+    font-size: 15px;
+    margin: 0;
+    max-width: 52ch;
+  }
+
+  #entries {
+    display: flex;
+    flex-direction: column;
+  }
+
+  article.entry {
+    padding: 36px 0;
+    border-bottom: 1px solid var(--rule);
+  }
+
+  article.entry:last-child {
+    border-bottom: none;
+  }
+
+  .entry-meta {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    margin-bottom: 10px;
+    flex-wrap: wrap;
+  }
+
+  .entry-date {
+    font-family: var(--font-mono);
+    font-size: 13px;
+    letter-spacing: 0.02em;
+    background: var(--accent-soft);
+    color: var(--accent);
+    padding: 3px 9px;
+    border-radius: 3px;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .entry-tag {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--muted);
+  }
+
+  article.entry h2 {
+    font-family: var(--font-serif);
+    font-weight: 600;
+    font-size: 22px;
+    margin: 0 0 14px;
+    text-wrap: balance;
+  }
+
+  article.entry ul {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 9px;
+  }
+
+  article.entry li {
+    padding-left: 18px;
+    position: relative;
+    font-size: 15.5px;
+  }
+
+  article.entry li::before {
+    content: "—";
+    position: absolute;
+    left: 0;
+    color: var(--accent);
+  }
+
+  article.entry code {
+    font-family: var(--font-mono);
+    font-size: 0.9em;
+    background: var(--accent-soft);
+    padding: 0.1em 0.35em;
+    border-radius: 3px;
+  }
+
+  article.entry .note {
+    margin-top: 14px;
+    color: var(--muted);
+    font-size: 14px;
+    border-left: 2px solid var(--rule);
+    padding-left: 14px;
+  }
+
+  footer {
+    padding-top: 40px;
+    color: var(--muted);
+    font-size: 13px;
+    font-family: var(--font-mono);
+  }
+</style>
+
+<main>
+  <header class="masthead">
+    <div class="kicker">Structory — Cœur comptable &amp; écosystème PreCogn</div>
+    <h1>Journal Analyzor / SheetToJournal</h1>
+    <p>Suivi chronologique du chantier « faire de Docling un vrai moteur d'extraction pour sheettojournal ». Dernière entrée en haut. Détail technique dans <code>~/analyzor/</code> sur le serveur.</p>
+  </header>
+
+  <div id="entries">
+
+    <article class="entry">
+      <div class="entry-meta">
+        <span class="entry-date">2026-07-18</span>
+        <span class="entry-tag">docling · ppdc · ownstorage · résultat réel</span>
+      </div>
+      <h2>Docling configuré et branché, storage réel, premier résultat mesuré</h2>
+      <ul>
+        <li><code>connector_docling.py</code> : Docling n'est plus utilisé en configuration par défaut — <code>treat_singleton_as_text</code>, <code>gap_tolerance</code>, <code>parse_charts=False</code>, testé avant/après (303 tables bruitées → 222 propres, contenu vérifié fidèle cellule par cellule).</li>
+        <li><code>/sheettojournal</code> : boucle explicite un onglet à la fois (PPDC = Docling groupe déjà nativement par onglet, <code>GroupLabel.SHEET</code>), entonnoir à 4 niveaux visibles dans le rapport (vide → non-grand-livre → sans compte identifié → extrait).</li>
+        <li>Connector <code>connector_ownstorage.py</code> créé : accès Google Drive réel (compte de service dédié <code>analyzor-ownstorage</code>, projet Cloud, API Drive activée, dossier Structory partagé) — testé en lecture/écriture réelle, pas simulé.</li>
+        <li><code>config_resolver.py</code> : la classification (en-têtes de grand livre, libellés à ignorer) vient maintenant de vraies briques lues sur Drive en cascade Structory → module → organisation, plus de constantes codées en dur. Vérifié par relecture depuis Drive après écriture.</li>
+        <li>Premier test réel de bout en bout sur le fichier copro : 585 postings extraits, <strong>54,6&nbsp;% de réconciliation</strong> (201/368) — moins bien que les 68&nbsp;% obtenus hier à la main. Diagnostic en cours : le moteur générique regroupe actuellement plusieurs sous-groupes de montants différents (ex. « Appel » et « fonds prévoyance ») en une seule somme au lieu de les traiter séparément.</li>
+        <li>Correction de compréhension du PPDC actée : ne pas deviner des sous-groupes par mot-clé métier (ce qui avait été fait hier, à la main, pour cette copro) — diviser algorithmiquement le problème (essayer l'ensemble, sinon des sous-ensembles plus petits) jusqu'à trouver une taille qui se résout, à la Descartes. Pas encore codé.</li>
+      </ul>
+      <div class="note">Ce journal est créé suite à ta demande explicite (comme celui de structory-subscriptions) : même limite technique rencontrée — impossible d'éditer un Google Doc existant en place avec les outils disponibles, seulement le lire ou en créer un nouveau. Ce fichier HTML local reste la source de vérité, republié en Google Doc.</div>
+    </article>
+
+  </div>
+
+  <footer>Journal tenu à jour à chaque session de travail sur analyzor/sheettojournal.</footer>
+</main>

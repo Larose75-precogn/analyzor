@@ -147,17 +147,23 @@ def extract_ledger_postings(compte, headers, rows, label=None, skip_labels=None)
     return postings
 
 
-def extract_grouped_expense_postings(tables):
+def extract_grouped_expense_postings(tables, block_total_tolerance=0.02, partial_block_policy='keep_with_flag'):
     """Passe la liste des tables d'un même onglet au format 'bloc de compte groupé' :
     une ligne d'en-tête [code, libellé, total, ...] (le code peut manquer sur les
     tables de continuation - alors le libellé, déjà vu ailleurs dans le classeur,
     permet de retrouver le compte), suivie de lignes [date, montant, commentaire].
     Générique - aucun mot-clé métier, seulement position/forme des cellules.
 
-    Chaque bloc (une table, un compte) est comparé au total qu'il déclare lui-même :
-    seuls les blocs dont la somme extraite correspond exactement (± 0.02) au total
-    déclaré sont retenus. Les autres sont renvoyés à part (`uncertain`), pas
-    silencieusement inclus - cohérent avec 'jamais de suppositions sur de vrais chiffres'.
+    Chaque bloc (une table, un compte) est comparé au total qu'il déclare lui-même
+    (tolérance `block_total_tolerance`, normalement résolue depuis une Rule -
+    voir config_resolver.resolve_table_config - le défaut ici n'est qu'un repli).
+    Si la somme est INFÉRIEURE au total déclaré (souvent un montant budgété pas
+    encore totalement réalisé) : `partial_block_policy='keep_with_flag'` (défaut)
+    garde les lignes réellement observées et signale l'écart dans `uncertain` ;
+    `'discard'` retrouve l'ancien comportement tout-ou-rien. Si la somme est
+    SUPÉRIEURE au total déclaré (signe probable d'un rattachement erroné), le
+    bloc est toujours écarté, quelle que soit la politique - jamais de
+    suppositions sur de vrais chiffres.
 
     Retourne (postings, uncertain_rows).
     """
@@ -224,20 +230,37 @@ def extract_grouped_expense_postings(tables):
                     side = 'debit' if amount >= 0 else 'credit'
                     block_postings.append({
                         'compte': compte, 'label': label or compte, 'date': d,
-                        'libelle': comment, 'side': side, 'amount': round(abs(amount), 2),
+                        'libelle': comment or label or compte, 'side': side, 'amount': round(abs(amount), 2),
                     })
             if expected_total is None:
-                uncertain_rows.append({'raw': [compte] + raw_rows, 'reason': 'pas de total déclaré pour validation'})
+                postings.extend(block_postings)
+                uncertain_rows.append({'raw': [compte] + raw_rows, 'reason': 'pas de total déclaré pour validation (lignes tout de même retenues)'})
                 continue
             got_total = round(sum(
                 p['amount'] if p['side'] == 'debit' else -p['amount'] for p in block_postings
             ), 2)
-            if abs(got_total - round(expected_total, 2)) <= 0.02:
+            ecart = round(expected_total - got_total, 2)
+            if abs(ecart) <= block_total_tolerance:
+                # Total déclaré == somme des lignes : confiance maximale.
                 postings.extend(block_postings)
-            else:
+            elif (expected_total >= 0) == (ecart > 0) or got_total == 0:
+                # La somme extraite est INFÉRIEURE (en valeur) au total déclaré : chaque
+                # ligne reste un fait observé dans la source, rien n'est inventé - seule
+                # une partie du total déclaré (souvent un montant budgété/prévisionnel,
+                # pas encore entièrement réalisé) manque à l'appel.
+                if partial_block_policy == 'keep_with_flag':
+                    postings.extend(block_postings)
                 uncertain_rows.append({
                     'compte': compte, 'attendu': expected_total, 'obtenu': got_total,
-                    'raw': raw_rows, 'reason': 'somme extraite ≠ total déclaré par le classeur',
+                    'raw': raw_rows,
+                    'reason': f'lignes {"retenues mais incomplètes" if partial_block_policy == "keep_with_flag" else "écartées (bloc incomplet)"} : {ecart:+.2f} manquant vs le total déclaré (probable montant budgété non totalement réalisé)',
+                })
+            else:
+                # La somme extraite DÉPASSE le total déclaré : signe probable d'une
+                # ligne mal rattachée à ce compte - on ne retient rien de ce bloc.
+                uncertain_rows.append({
+                    'compte': compte, 'attendu': expected_total, 'obtenu': got_total,
+                    'raw': raw_rows, 'reason': 'somme extraite > total déclaré - rattachement suspect, bloc écarté',
                 })
 
     return postings, uncertain_rows
@@ -406,7 +429,18 @@ def _make_transaction(debit, credit, method, date_gap, aggregate_amount=None):
 
 
 def reconcile(postings):
-    """Point d'entrée : postings -> (transactions, non_affectés)."""
+    """Point d'entrée : postings -> (transactions, non_affectés).
+
+    Ordre des passes délibéré : les passes groupées (compte exact + fenêtre de
+    jours) tournent AVANT l'appariement glouton par paires. Testé et confirmé
+    nécessaire (2026-07-20/21, test_copro.xlsx) : dans l'ordre inverse, la passe
+    par paires "vole" parfois une ligne d'un groupe légitime (ex. deux appels de
+    charges du même jour/compte formant ensemble le vrai montant réglé) via une
+    coïncidence de montant avec un crédit sans rapport, avant que les passes
+    groupées n'aient la moindre chance de reconstituer le groupe complet - ça
+    dégrade le taux au lieu de l'améliorer. Faire tourner les groupes en premier
+    laisse la paire simple (passe finale) nettoyer ce qui reste, sans jamais
+    pouvoir démembrer un groupe déjà formé."""
     transactions, unmatched_debits, unmatched_credits = match_exact_pairs(postings)
     agg_transactions, unmatched_debits, unmatched_credits = match_aggregate_same_day(
         unmatched_debits, unmatched_credits

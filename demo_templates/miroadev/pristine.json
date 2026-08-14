@@ -1,0 +1,86 @@
+{
+  "org_id": "miroadev",
+  "folder_id": "1oVkLbPDgdyuJflTG-cFbHEOBtYNtnmsn",
+  "description": "État pristine de la démo comptacopro (miroadev). Reset via POST /api/demo/miroadev/reset.",
+  "users": [
+    {
+      "uid": "use_9ec2aab659d948a19b6b",
+      "title": "Fondateur",
+      "contenu": {
+        "email": "owner@example.com",
+        "name": "Fondateur",
+        "role": "owner"
+      }
+    },
+    {
+      "uid": "use_a1b2c3d4e5f6a7b8c9d0",
+      "title": "AMSELLEM",
+      "contenu": {
+        "email": "amsellem@demo.comptacopro.fr",
+        "name": "AMSELLEM",
+        "role": "viewer",
+        "compte": "451001",
+        "montant_trim": 466.0
+      }
+    },
+    {
+      "uid": "use_b2c3d4e5f6a7b8c9d0e1",
+      "title": "AOUCHICHE",
+      "contenu": {
+        "email": "aouchiche@demo.comptacopro.fr",
+        "name": "AOUCHICHE",
+        "role": "viewer",
+        "compte": "451002",
+        "montant_trim": 264.0
+      }
+    },
+    {
+      "uid": "use_c3d4e5f6a7b8c9d0e1f2",
+      "title": "BEN RHOUMA",
+      "contenu": {
+        "email": "benrhouma@demo.comptacopro.fr",
+        "name": "BEN RHOUMA",
+        "role": "viewer",
+        "compte": "451003",
+        "montant_trim": 528.0
+      }
+    },
+    {
+      "uid": "use_d4e5f6a7b8c9d0e1f2a3",
+      "title": "CHOLET",
+      "contenu": {
+        "email": "cholet@demo.comptacopro.fr",
+        "name": "CHOLET",
+        "role": "viewer",
+        "compte": "451004",
+        "montant_trim": 216.0
+      }
+    },
+    {
+      "uid": "use_e5f6a7b8c9d0e1f2a3b4",
+      "title": "PLAISSY",
+      "contenu": {
+        "email": "plaissy@demo.comptacopro.fr",
+        "name": "PLAISSY",
+        "role": "viewer",
+        "compte": "451006",
+        "montant_trim": 526.0
+      }
+    }
+  ],
+  "rule_0009": {
+    "mandataire": {
+      "nom": "Cabinet Demo Gestion",
+      "email": "mandataire@demo.comptacopro.fr",
+      "societe": "Cabinet Demo",
+      "note": "Destinataire des appels de fonds (pas les copropriétaires directement)"
+    },
+    "copropriétaires": [
+      {"compte": "451001", "label": "AMSELLEM",   "montant_trim": 466.0, "email": "amsellem@demo.comptacopro.fr"},
+      {"compte": "451002", "label": "AOUCHICHE",  "montant_trim": 264.0, "email": "aouchiche@demo.comptacopro.fr"},
+      {"compte": "451003", "label": "BEN RHOUMA", "montant_trim": 528.0, "email": "benrhouma@demo.comptacopro.fr"},
+      {"compte": "451004", "label": "CHOLET",     "montant_trim": 216.0, "email": "cholet@demo.comptacopro.fr"},
+      {"compte": "451006", "label": "PLAISSY",    "montant_trim": 526.0, "email": "plaissy@demo.comptacopro.fr"}
+    ]
+  }
+}

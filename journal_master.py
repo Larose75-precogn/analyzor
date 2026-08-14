@@ -25,6 +25,35 @@ PRECOGN_FOLDER_ID = '135SXvs9tRRsycS3GaF1svBFiLfjmZZj5'
 # Dossiers qui ne sont pas de vraies orgs/outils (artefacts, à ignorer dans l'agrégat).
 IGNORE_DIRS = {MASTER_ORG_ID, 'compta_copro.ORPHELIN_fusionne_20260719'}
 
+# Le journal MASTER est un journal TECHNIQUE : il ne synthétise que le travail technique
+# (sessions de dev, commits git, agents claude) — JAMAIS les journaux ledgercli/comptables ni
+# les événements métier runtime (écritures 'sheet-communicator', points de solde 'executor',
+# provisioning 'ledger_api', recherches bancaires, abonnements, snapshots archi cron...).
+# Décision Stéphane 2026-08-14 : « ce ne sont pas les journaux ledgercli qui doivent être
+# synthétisés ici mais uniquement les journaux techniques. » Filtrage par ACTEUR à la génération
+# uniquement : les entries.jsonl sources restent intactes (chaque org garde son journal complet),
+# seul l'agrégat MASTER est filtré — donc réversible, et chaque regénération future reste propre.
+TECHNICAL_ACTOR_PREFIXES = ('session:', 'git-commit:', 'claude')
+
+
+def _is_technical_entry(entry):
+    """Vrai si l'entrée relève du travail technique (à inclure dans le MASTER), faux si c'est un
+    événement métier/comptable/runtime (à exclure). Distinction par préfixe d'acteur."""
+    return (entry.get('actor') or '').startswith(TECHNICAL_ACTOR_PREFIXES)
+
+
+import re as _re
+
+_EMAIL_RE = _re.compile(r'[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}')
+
+
+def _redact_pii(text):
+    """Masque le PII non-ambigu (adresses email) dans le rendu du MASTER. Même dans une entrée
+    TECHNIQUE, une transcription /rep peut citer un email réel — il n'a rien à faire dans un
+    journal technique agrégé. Masquage au RENDU seulement (sources intactes). Les noms de
+    personnes ne sont pas masqués ici (choix subjectif, liste à valider séparément)."""
+    return _EMAIL_RE.sub('[email masqué]', text or '')
+
 
 def _all_org_ids():
     if not os.path.isdir(JOURNALS_DIR):
@@ -49,6 +78,10 @@ def _merged_entries():
                 if not line:
                     continue
                 e = json.loads(line)
+                if not _is_technical_entry(e):
+                    continue  # événement métier/comptable/runtime — pas dans le journal technique
+                e['summary'] = _redact_pii(e.get('summary', ''))
+                e['details'] = [_redact_pii(d) for d in e.get('details', [])]
                 e['_origin_org'] = org_id
                 merged.append(e)
     merged.sort(key=lambda e: e.get('timestamp', ''))

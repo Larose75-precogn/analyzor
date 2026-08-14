@@ -15,7 +15,10 @@ from journal_engine import (
 )
 
 LEDGER_API_URL = os.environ.get('LEDGER_API_URL', 'http://localhost:8080')
-from config_resolver import resolve_query_keywords, resolve_table_config, resolve_connectors
+from config_resolver import (
+    resolve_query_keywords, resolve_table_config, resolve_connectors,
+    invalidate_module_cache, MODULE_FOLDER_ID,
+)
 
 app = FastAPI(
     title="Analyzor",
@@ -35,6 +38,9 @@ except ImportError:
     print("⚠️ Docling non installé")
 
 import connector_ollama
+import connector_llmprecogn
+import understand as _understand
+import docling_registry
 
 @app.get("/")
 async def root():
@@ -43,7 +49,11 @@ async def root():
         "version": "0.3.0",
         "status": "running",
         "docling": DOCLING_AVAILABLE,
-        "routes": ["/", "/health", "/upload", "/sheettojournal", "/api/context/query-keywords"]
+        "routes": ["/", "/health", "/upload", "/sheettojournal",
+                   "/api/context/query-keywords",
+                   "/api/ollama/status", "/api/ollama/chat", "/api/ollama/generate",
+                   "/api/llmprecogn/status", "/api/llmprecogn/providers", "/api/llmprecogn/chat",
+                   "/api/llmprecogn/analyse", "/api/understand"]
     }
 
 @app.get("/health")
@@ -69,6 +79,66 @@ async def ollama_chat(payload: dict):
 @app.post("/api/ollama/embed")
 async def ollama_embed(payload: dict):
     return connector_ollama.embed(payload)
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# LLMPreCogn — proxy vers le worker Cloudflare (groq, cerebras, deepseek…)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@app.get("/api/llmprecogn/status")
+async def llmprecogn_status():
+    return connector_llmprecogn.status()
+
+@app.get("/api/llmprecogn/providers")
+async def llmprecogn_providers():
+    return connector_llmprecogn.providers()
+
+@app.post("/api/llmprecogn/chat")
+async def llmprecogn_chat(payload: dict):
+    return connector_llmprecogn.chat(payload)
+
+@app.post("/api/llmprecogn/analyse")
+async def llmprecogn_analyse(payload: dict):
+    return connector_llmprecogn.analyse(payload)
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Understand — point d'entrée de compréhension (briques + LLMPreCogn + Ollama)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@app.post("/api/understand")
+async def understand(payload: dict):
+    """Interprète un message dans le contexte brique d'une org.
+
+    Body :
+      - orgId        (str) : obligatoire
+      - message      (str) : obligatoire
+      - lastMessage  (str) : optionnel, message précédent pour contexte conversationnel
+      - documentText (str) : optionnel, texte déjà extrait par Docling
+      - documentBase64  (str) : optionnel, document brut en base64 (Analyzor l'extrait via Docling)
+      - documentFilename (str) : optionnel, pour détecter le type si base64 fourni
+
+    Retourne {intent, response?, libelle?, montant?, ...} — voir understand.py.
+    """
+    org_id = payload.get("orgId")
+    message = payload.get("message")
+    if not org_id or not message:
+        return JSONResponse({"success": False, "error": "orgId et message requis"}, status_code=400)
+
+    try:
+        result = _understand.understand(
+            org_id=org_id,
+            message=message,
+            last_message=payload.get("lastMessage", ""),
+            document_text=payload.get("documentText", ""),
+            document_base64=payload.get("documentBase64", ""),
+            document_filename=payload.get("documentFilename", ""),
+        )
+        result["success"] = True
+        return result
+    except Exception as e:
+        return JSONResponse({"success": False, "error": str(e)}, status_code=500)
+
 
 @app.get("/api/context/query-keywords")
 async def context_query_keywords():
@@ -305,6 +375,24 @@ async def sheettojournal(file: UploadFile = File(...), orgId: Optional[str] = Fo
             except requests.RequestException as e:
                 import_coeur_comptable = {"success": False, "error": f"coeur_comptable injoignable: {e}"}
 
+        # Enregistrer le document dans Docling (registre central d'information)
+        if orgId:
+            try:
+                docling_registry.record_document(
+                    org_id=orgId,
+                    filename=file.filename,
+                    doc_type="xlsx",
+                    extracted_sheets=len(sheets),
+                    classification=" | ".join(sorted(set(
+                        o["classification"] for o in onglets_rapport
+                        if o["classification"] in ("grand_livre_identifie", "blocs_de_compte_groupes")
+                    ) or ["non_classe"])),
+                    postings_extracted=len(postings),
+                    reconciliation_rate=taux_reconciliation,
+                )
+            except Exception:
+                pass
+
         return {
             "status": "ok",
             "name": file.filename,
@@ -428,6 +516,40 @@ async def journal_gdoc(orgId: str, requesterOrgId: str):
 # ── journaltosheet ────────────────────────────────────────────────────────────
 import re as _re
 
+
+def _account_rows_from_csv(csv_output, compte, begin_date=None):
+    """Lignes [date, libellé COMPLET, débit, crédit, solde] d'un onglet de compte, construites
+    depuis la sortie `csv` de ledger (libellés entiers) — jamais depuis `register`, dont la
+    sortie TEXTE tronque libellé et compte à largeur de colonne fixe en y injectant des '..'
+    (root cause des 84 libellés pollués type 'Patrimonia Paiement.. 451001:AMSELLEM' trouvés
+    dans le sheet Ponia, 2026-08-14). Le solde cumulé est recalculé ici (le csv ne le donne pas),
+    à l'identique du running total de `register --begin` : cumul sur les seules lignes affichées.
+
+    csv colonnes : date, "", libellé, compte(ex '451001:AMSELLEM'), devise, montant, '*', "".
+    `compte` : code de l'onglet (ex '451001', '5121', '701'). `begin_date` : 'YYYY/MM/DD' pour
+    borner à l'exercice courant (None = tout l'historique, ex. copropriétaires 451xxx)."""
+    import csv as _csv, io as _io
+    rows = []
+    solde = 0.0
+    for row in _csv.reader(_io.StringIO(csv_output or '')):
+        if len(row) < 6:
+            continue
+        date_str, _, libelle, compte_full, _devise, amount_raw = row[0], row[1], row[2], row[3], row[4], row[5]
+        if compte_full.split(':', 1)[0] != compte:
+            continue
+        if begin_date and date_str < begin_date:
+            continue
+        try:
+            montant = round(float(amount_raw), 2)
+        except ValueError:
+            continue
+        solde = round(solde + montant, 2)
+        debit  = round(montant, 2)  if montant > 0 else ''
+        credit = round(-montant, 2) if montant < 0 else ''
+        rows.append([date_str, libelle.rstrip('. '), debit, credit, solde])
+    return rows
+
+
 @app.post("/api/journaltosheet")
 async def journaltosheet(payload: dict):
     """Régénère le sheet miroir depuis le journal ledger-cli.
@@ -454,14 +576,34 @@ async def journaltosheet(payload: dict):
         return JSONResponse({'success': False, 'error': f'Erreur lecture tabs: {e}'}, status_code=500)
 
     rapport = []
+    _depenses_tab = None
+
+    # CSV complet du journal, récupéré UNE fois (libellés entiers, jamais tronqués comme
+    # `register`) — sert à la fois aux onglets de compte (_account_rows_from_csv) et à l'onglet
+    # Journal plus bas. Source unique, pas un appel ledger par onglet.
+    try:
+        resp_csv = requests.post(
+            f'{ledger_url}/api/ledger/query',
+            json={'orgId': org_id, 'command': 'csv'},
+            timeout=30,
+        )
+        csv_all = resp_csv.json()
+    except Exception as e:
+        csv_all = {'success': False, 'error': str(e)}
+    csv_output = csv_all.get('output', '') if csv_all.get('success') else ''
+
+    from datetime import date as _date
+    current_year = _date.today().year
 
     for tab in tabs:
         title = tab['title']
-        if not title.startswith('1 - '):
+        if not title.startswith('C - '):
             continue
-        if title in ('1 - Balance', '1 - SYNTHESE'):
+        if title in ('C - Balance', 'C - Journal'):
             continue
-        if '6 DEPENSES' in title:
+        if '6 Dépenses' in title or '6 DEPENSES' in title:
+            # Traité séparément ci-dessous (blocs par compte 6xx)
+            _depenses_tab = title
             continue
 
         # Extraire le code compte depuis le nom de l'onglet
@@ -470,67 +612,27 @@ async def journaltosheet(payload: dict):
             continue
         compte = m.group(1)
 
-        # Lire le registre ledger pour ce compte
-        try:
-            resp = requests.post(
-                f'{ledger_url}/api/ledger/query',
-                json={'orgId': org_id, 'command': 'register', 'filters': [compte]},
-                timeout=15,
-            )
-            result = resp.json()
-        except Exception as e:
-            rapport.append({'onglet': title, 'status': 'erreur', 'error': str(e)})
+        if not csv_all.get('success'):
+            rapport.append({'onglet': title, 'status': 'erreur', 'error': csv_all.get('error')})
             continue
 
-        if not result.get('success'):
-            rapport.append({'onglet': title, 'status': 'erreur', 'error': result.get('error')})
-            continue
+        # Exercice courant : seules les 451xxx (copropriétaires) gardent tout l'historique.
+        # Tous les autres comptes : exercice courant uniquement (01/01 de l'année en cours).
+        begin_date = None if compte.startswith('451') else f'{current_year}/01/01'
 
-        # Parser la sortie ledger register
-        # Format réel : "22-Jan-01 Description    COMPTE    699.00 EUR   699.00 EUR"
-        # Date au format YY-Mon-DD, solde parfois juste "0" sans EUR
-        from datetime import datetime as _dt
-        rows = []
-        for line in (result.get('output') or '').splitlines():
-            line = line.rstrip()
-            if not line.strip():
-                continue
-            parts = _re.split(r'\s{2,}', line.strip())
-            if len(parts) < 3:
-                continue
-            date_desc = parts[0]
-            date_m = _re.match(r'^(\d{2}-[A-Za-z]{3}-\d{2})\s+(.*)', date_desc)
-            if not date_m:
-                continue
-            try:
-                date_obj = _dt.strptime(date_m.group(1), '%y-%b-%d')
-                date_str = date_obj.strftime('%Y/%m/%d')
-            except ValueError:
-                continue
-            # strip account name from description if not merged (4+ parts)
-            libelle_raw = date_m.group(2)
-            if len(parts) >= 4:
-                libelle_raw = libelle_raw  # account is in parts[1], desc clean
-            libelle = libelle_raw.rstrip('. ')
-            montant_raw = parts[-2].replace(' EUR', '').replace(',', '').strip()
-            solde_raw   = parts[-1].replace(' EUR', '').replace(',', '').strip()
-            try:
-                montant = float(montant_raw)
-                solde   = float(solde_raw) if solde_raw not in ('0', '') else 0.0
-            except ValueError:
-                continue
-            debit  = round(montant, 2) if montant > 0 else ''
-            credit = round(-montant, 2) if montant < 0 else ''
-            rows.append([date_str, libelle, debit, credit, round(solde, 2)])
+        # Lignes construites depuis le CSV (libellés COMPLETS), jamais depuis register (tronqué)
+        rows = _account_rows_from_csv(csv_output, compte, begin_date=begin_date)
 
-        if not rows:
-            rapport.append({'onglet': title, 'status': 'vide', 'n': 0})
-            continue
-
-        # Écrire dans l'onglet : ligne 3 onwards (lignes 1+2 = en-têtes intouchées)
-        range_name = f"'{title}'!A3:E{2 + len(rows)}"
+        # TOUJOURS vider la plage de données d'abord — même sans ligne à écrire. Sans ça, un
+        # compte sans activité sur l'exercice courant gardait indéfiniment son ancienne donnée
+        # (souvent tronquée/périmée) au lieu d'un onglet vide (bug trouvé 2026-08-14 : C - 401 et
+        # C - 102004 conservaient des libellés pollués car marqués "vide" donc jamais nettoyés).
         try:
             clear_sheet_range(sheet_id, f"'{title}'!A3:E1000")
+            if not rows:
+                rapport.append({'onglet': title, 'status': 'vide', 'n': 0})
+                continue
+            range_name = f"'{title}'!A3:E{2 + len(rows)}"
             write_sheet_range(sheet_id, range_name, rows)
             rapport.append({'onglet': title, 'status': 'ok', 'compte': compte, 'n': len(rows)})
         except Exception as e:
@@ -538,15 +640,6 @@ async def journaltosheet(payload: dict):
 
     # ── Onglet Journal : toutes les écritures (format csv = noms complets) ──────
     import csv as _csv, io as _io
-    try:
-        resp_j = requests.post(
-            f'{ledger_url}/api/ledger/query',
-            json={'orgId': org_id, 'command': 'csv'},
-            timeout=30,
-        )
-        csv_all = resp_j.json()
-    except Exception as e:
-        csv_all = {'success': False, 'error': str(e)}
 
     if csv_all.get('success'):
         # CSV colonnes : date, ?, libellé, compte, devise, montant, *, ?
@@ -687,18 +780,232 @@ async def journaltosheet(payload: dict):
         data_rows.sort(key=lambda x: x[0], reverse=True)
         journal_rows = [['Date', 'Libellé', 'Compte', 'Débit', 'Crédit']] + [r for _, r in data_rows]
 
-        # Trouver ou créer l'onglet Journal
-        journal_tab = next((t for t in tabs if t['title'] == 'Journal'), None)
+        # Trouver l'onglet Journal (nouveau nom C - Journal ou ancien Journal)
+        journal_tab = next((t for t in tabs if t['title'] in ('C - Journal', 'Journal')), None)
         if journal_tab:
+            jtitle = journal_tab['title']
             try:
-                clear_sheet_range(sheet_id, "Journal!A1:E10000")
-                write_sheet_range(sheet_id, f"Journal!A1:E{len(journal_rows)}", journal_rows)
-                rapport.append({'onglet': 'Journal', 'status': 'ok', 'n': len(journal_rows) - 1})
+                clear_sheet_range(sheet_id, f"'{jtitle}'!A1:E10000")
+                write_sheet_range(sheet_id, f"'{jtitle}'!A1:E{len(journal_rows)}", journal_rows)
+                rapport.append({'onglet': jtitle, 'status': 'ok', 'n': len(journal_rows) - 1})
             except Exception as e:
-                rapport.append({'onglet': 'Journal', 'status': 'erreur_ecriture', 'error': str(e)})
+                rapport.append({'onglet': jtitle, 'status': 'erreur_ecriture', 'error': str(e)})
         else:
-            rapport.append({'onglet': 'Journal', 'status': 'onglet_absent',
-                            'note': 'Créer un onglet nommé "Journal" dans le sheet pour l\'activer'})
+            rapport.append({'onglet': 'C - Journal', 'status': 'onglet_absent',
+                            'note': "Créer un onglet nommé 'C - Journal' dans le sheet pour l'activer"})
+
+    # ── Onglet C - Balance (bilan exercice courant) et A - Exercice YYYY (archives) ──
+    _BAL_LINE = _re.compile(r'(-?[\d,]+\.\d{2})\s+EUR\s+(.+)')
+
+    def _parse_balance(output):
+        rows = []
+        for line in (output or '').splitlines():
+            m = _BAL_LINE.search(line)
+            if not m:
+                continue
+            amount_str = m.group(1).replace(',', '')
+            full_account = m.group(2).strip()
+            code, label = (full_account.split(':', 1) if ':' in full_account
+                           else (full_account, full_account))
+            try:
+                amount = round(float(amount_str), 2)
+            except ValueError:
+                continue
+            rows.append([code.strip(), label.strip(), amount])
+        return rows
+
+    from datetime import date as _date
+    current_year = _date.today().year
+
+    balance_tabs = []
+    for tab in tabs:
+        title = tab['title']
+        if title == 'C - Balance':
+            balance_tabs.append((title, f'{current_year}/01/01', None, f'Solde {current_year} EUR'))
+        elif title.startswith('A - Exercice '):
+            year_m = _re.search(r'(\d{4})', title)
+            if year_m:
+                y = year_m.group(1)
+                balance_tabs.append((title, f'{y}/01/01', f'{y}/12/31', f'Solde {y} EUR'))
+
+    for title, begin_dt, end_dt, col_label in balance_tabs:
+        try:
+            qbody = {'orgId': org_id, 'command': 'balance', 'filters': []}
+            if begin_dt:
+                qbody['beginDate'] = begin_dt
+            if end_dt:
+                qbody['endDate'] = end_dt
+            resp_b = requests.post(f'{ledger_url}/api/ledger/query', json=qbody, timeout=15)
+            bal = resp_b.json()
+        except Exception as e:
+            rapport.append({'onglet': title, 'status': 'erreur', 'error': str(e)})
+            continue
+        if not bal.get('success'):
+            rapport.append({'onglet': title, 'status': 'erreur', 'error': bal.get('error')})
+            continue
+        year_label = begin_dt[:4] if begin_dt else str(current_year)
+        bal_rows = _parse_balance(bal.get('output', ''))
+        all_rows = ([[f'Balance Exercice {year_label}', '', ''],
+                     ['Compte', 'Libellé', col_label]] + bal_rows)
+        try:
+            clear_sheet_range(sheet_id, f"'{title}'!A1:C1000")
+            write_sheet_range(sheet_id, f"'{title}'!A1:C{len(all_rows)}", all_rows)
+            rapport.append({'onglet': title, 'status': 'ok', 'n': len(bal_rows)})
+        except Exception as e:
+            rapport.append({'onglet': title, 'status': 'erreur_ecriture', 'error': str(e)})
+
+    # ── Onglet C - 6 Dépenses (blocs par compte 6xx, exercice courant) ──────────
+    if _depenses_tab:
+        try:
+            # 1. Balance 6xx pour connaître les comptes actifs cette année
+            resp_6 = requests.post(f'{ledger_url}/api/ledger/query', json={
+                'orgId': org_id, 'command': 'balance', 'filters': ['6'],
+                'beginDate': f'{current_year}/01/01', 'endDate': f'{current_year+1}/01/01',
+            }, timeout=15)
+            bal_6 = resp_6.json()
+            comptes_6 = []
+            if bal_6.get('success'):
+                for line in bal_6.get('output', '').splitlines():
+                    m = _BAL_LINE.search(line)
+                    if not m:
+                        continue
+                    full = m.group(2).strip()
+                    code = full.split(':')[0].strip()
+                    if not code.startswith('6'):
+                        continue
+                    label = full.split(':', 1)[1].strip() if ':' in full else full
+                    try:
+                        amt = round(float(m.group(1).replace(',', '')), 2)
+                    except ValueError:
+                        continue
+                    comptes_6.append((code, label, amt))
+
+            # 2. Construire les blocs
+            dep_rows = [[f'Dépenses {current_year}', '', '', '']]
+            dep_rows.append(['Compte', 'Date', 'Libellé', 'Montant EUR'])
+            total_general = 0.0
+
+            for code, label, solde_annuel in comptes_6:
+                # En-tête du bloc
+                dep_rows.append([f'{code} — {label}', '', '', ''])
+                # Register pour ce compte cette année
+                resp_r = requests.post(f'{ledger_url}/api/ledger/query', json={
+                    'orgId': org_id, 'command': 'register', 'filters': [code],
+                    'beginDate': f'{current_year}/01/01', 'endDate': f'{current_year+1}/01/01',
+                }, timeout=15)
+                reg = resp_r.json()
+                bloc_total = 0.0
+                if reg.get('success'):
+                    for line in (reg.get('output') or '').splitlines():
+                        if not line.strip():
+                            continue
+                        first_part = _re.split(r'\s{2,}', line.strip())[0]
+                        date_m = _DATE_RE.match(first_part)
+                        if not date_m:
+                            continue
+                        try:
+                            date_obj = _dt.strptime(date_m.group(1), '%y-%b-%d')
+                            date_str = date_obj.strftime('%Y/%m/%d')
+                        except ValueError:
+                            continue
+                        libelle = date_m.group(2).rstrip('. ')
+                        amounts = _AMT_RE.findall(line)
+                        if len(amounts) < 2:
+                            continue
+                        montant = round(float(amounts[-2].replace(',', '')), 2)
+                        dep_rows.append(['', date_str, libelle, montant])
+                        bloc_total += montant
+                dep_rows.append(['', '', f'Sous-total {code}', round(bloc_total, 2)])
+                dep_rows.append(['', '', '', ''])
+                total_general += bloc_total
+
+            dep_rows.append(['', '', 'TOTAL DÉPENSES', round(total_general, 2)])
+
+            clear_sheet_range(sheet_id, f"'{_depenses_tab}'!A1:D5000")
+            write_sheet_range(sheet_id, f"'{_depenses_tab}'!A1:D{len(dep_rows)}", dep_rows)
+            rapport.append({'onglet': _depenses_tab, 'status': 'ok', 'n': len(comptes_6)})
+        except Exception as e:
+            rapport.append({'onglet': _depenses_tab, 'status': 'erreur', 'error': str(e)})
+
+    # ── Onglets A - Relevés YYYY (annexes individuelles par copropriétaire) ──────
+    import json as _json
+    from pathlib import Path as _Path
+
+    rule9_path = _Path('/home/ubuntu/ledger_api/modules/compta_copro/bricks/rule_0009_appel_fonds.json')
+    annex_tabs = [t for t in tabs if _re.match(r"A - Relevés \d{4}$", t['title'])]
+
+    if annex_tabs and rule9_path.exists():
+        rule9 = _json.loads(rule9_path.read_text())
+        copros = rule9.get('copropriétaires', [])
+        _AMT2 = _re.compile(r'(-?[\d,]+\.\d{2})\s+EUR')
+        _DT2  = _re.compile(r'^(\d{2}-[A-Za-z]{3}-\d{2})\s+(.*)')
+
+        def _parse_register(text, compte):
+            """Parse ledger register pour un compte : retourne liste [date, libellé, montant, solde]."""
+            rows = []
+            for line in text.splitlines():
+                m = _DT2.match(line.strip())
+                if not m: continue
+                raw_date, rest = m.group(1), m.group(2)
+                try:
+                    d = _datetime.strptime(raw_date, '%y-%b-%d')
+                    ds = d.strftime('%Y/%m/%d')
+                except: continue
+                amounts = _AMT2.findall(line)
+                if len(amounts) < 2: continue
+                libelle = rest.split('  ')[0].strip()[:50]
+                montant = round(float(amounts[-2].replace(',', '')), 2)
+                solde   = round(float(amounts[-1].replace(',', '')), 2)
+                rows.append([ds, libelle, montant, solde])
+            return rows
+
+        from datetime import datetime as _datetime
+
+        for tab in annex_tabs:
+            year_m = _re.search(r'(\d{4})', tab['title'])
+            if not year_m: continue
+            yr = year_m.group(1)
+            begin_yr, end_yr = f'{yr}/01/01', f'{yr}/12/31'
+
+            all_rows = [[f'Relevés individuels — Exercice {yr}', '', '', '', ''],
+                        ['', '', '', '', '']]
+            for copro in copros:
+                cpt = copro['compte']
+                nom = copro['label']
+                # Register filtré par année
+                try:
+                    reg_resp = requests.post(
+                        f'{ledger_url}/api/ledger/query',
+                        json={'orgId': org_id, 'command': 'register',
+                              'filters': [cpt], 'beginDate': begin_yr, 'endDate': end_yr},
+                        timeout=15
+                    )
+                    reg_text = reg_resp.json().get('output', '')
+                except Exception:
+                    reg_text = ''
+
+                mvts = _parse_register(reg_text, cpt)
+                all_rows.append([f'{nom} ({cpt})', '', '', '', ''])
+                all_rows.append(['Date', 'Libellé', 'Débit EUR', 'Crédit EUR', 'Solde EUR'])
+                for ds, lib, mnt, sol in mvts:
+                    debit  = mnt if mnt > 0 else ''
+                    credit = -mnt if mnt < 0 else ''
+                    all_rows.append([ds, lib, debit or '', credit or '', sol])
+                if not mvts:
+                    all_rows.append(['—', 'Aucun mouvement', '', '', ''])
+                # Totaux
+                tot_deb = sum(m[2] for m in mvts if m[2] > 0)
+                tot_cre = sum(-m[2] for m in mvts if m[2] < 0)
+                sol_fin = mvts[-1][3] if mvts else 0
+                all_rows.append(['', 'TOTAL', tot_deb, tot_cre, sol_fin])
+                all_rows.append(['', '', '', '', ''])
+
+            try:
+                clear_sheet_range(sheet_id, f"'{tab['title']}'!A1:E2000")
+                write_sheet_range(sheet_id, f"'{tab['title']}'!A1:E{len(all_rows)}", all_rows)
+                rapport.append({'onglet': tab['title'], 'status': 'ok', 'n': len(copros)})
+            except Exception as e:
+                rapport.append({'onglet': tab['title'], 'status': 'erreur_ecriture', 'error': str(e)})
 
     n_ok = sum(1 for r in rapport if r['status'] == 'ok')
     return {'success': True, 'tabs_traites': len(rapport), 'tabs_ok': n_ok, 'rapport': rapport}
@@ -771,6 +1078,41 @@ async def account_lookup_by_email(email: str):
     return {"success": True, "memberships": _bricks.lookup_by_email(email)}
 
 
+@app.get("/api/account/module-orgs")
+async def account_module_orgs(email: str, module: str):
+    """Orgs d'un user filtrées par leur module (source unique de vérité : `contenu.module` sur
+    la brique Organisation, dans le Drive de l'org — voir feedback Stéphane 2026-08-13, décision
+    d'ancrer le module en BYOS). Utilisé par structory.ai/comptacopro après sign-in Google
+    (email extrait du JWT côté client). Ex: ?email=foo@bar.com&module=compta_copro
+
+    `parentOrgId` n'est PLUS le champ de filtrage : c'était une confusion — parentOrgId est la
+    hiérarchie parent/fille d'organisations, jamais le module. On garde une lecture de secours
+    sur parentOrgId uniquement pour les orgs anciennes pas encore remigrées (aucune régression)."""
+    memberships = _bricks.lookup_by_email(email)
+    result = []
+    for m in memberships:
+        org = _bricks.get_org(m['orgId'])
+        if not org:
+            continue
+        contenu = org.get('contenu') or {}
+        org_module = contenu.get('module') or contenu.get('parentOrgId', '')  # parentOrgId = repli legacy
+        # Cas précis "structorydemo" (retour de Stéphane 2026-08-14 : son org réelle, créée
+        # 2026-07-26 avant l'introduction du module 'structory_compta', n'apparaissait plus dans
+        # "mes organisations"). Alias ciblé sur cet orgId précis, PAS un alias générique
+        # parentOrgId=='structory' -> 'structory_compta' : "suivre_mes_comptes" partage le même
+        # parentOrgId legacy ('structory') mais est un module totalement différent (patrimoine,
+        # pas comptabilité) — un alias large l'aurait fait apparaître ici à tort (vérifié).
+        if m['orgId'] == 'structorydemo' and org_module == 'structory' and module == 'structory_compta':
+            org_module = 'structory_compta'
+        if org_module == module:
+            result.append({
+                'orgId': m['orgId'],
+                'name': contenu.get('name') or org.get('title') or m['orgId'],
+                'role': m['role'],
+            })
+    return {"success": True, "orgs": result}
+
+
 @app.post("/api/org/{org_id}/secrets")
 async def org_set_secret(org_id: str, payload: dict):
     """Stocke un secret (ex. clé API d'un connector) chiffré dans le Drive de cette org
@@ -828,6 +1170,64 @@ async def org_add_compte(org_id: str, payload: dict):
     return JSONResponse(result, status_code=status)
 
 
+@app.post("/api/demo/{org_id}/reset")
+async def demo_reset(org_id: str):
+    """Remet une org de démo à son état pristine.
+    Les fichiers Drive sont immuables en démo (écriture service account bloquée),
+    donc le reset consiste uniquement à vider les caches mémoire et forcer un rechargement
+    depuis Drive — qui contient déjà l'état pristine.
+    Seuls les org_id listés dans DEMO_ORGS sont autorisés."""
+    import pathlib
+
+    DEMO_ORGS = {'miroadev'}
+    if org_id not in DEMO_ORGS:
+        return JSONResponse({"success": False, "errorCode": "not_a_demo_org"}, status_code=403)
+
+    tpl_path = pathlib.Path(__file__).parent / 'demo_templates' / org_id / 'pristine.json'
+    if not tpl_path.exists():
+        return JSONResponse({"success": False, "errorCode": "template_not_found"}, status_code=404)
+
+    tpl = json.loads(tpl_path.read_text())
+    folder_id = tpl['folder_id']
+
+    # Vider tous les caches mémoire pour cet org — Drive est déjà l'état pristine
+    for bt in ('User', 'Compte', 'Rule', 'Organisation', None):
+        _bricks._list_bricks_cache.pop((folder_id, bt), None)
+    _bricks._email_index['built_at'] = 0   # force rebuild complet au prochain appel
+
+    # Forcer la relecture immédiate depuis Drive
+    users = _bricks.list_users(org_id)
+    _bricks._rebuild_email_index()
+
+    return {
+        "success": True,
+        "org_id": org_id,
+        "users_reloaded": len(users),
+        "users": [{"uid": u.get("uid"), "name": u.get("title"), "role": (u.get("contenu") or {}).get("role")} for u in users],
+    }
+
+
+@app.post("/api/org/{org_id}/comptes/invalidate-cache")
+async def org_invalidate_comptes_cache(org_id: str):
+    """À appeler après toute écriture de brique Compte qui contourne ce service (ex.
+    identityCreateCompte, Apps Script/DriveApp) — voir bricks.invalidate_comptes_cache."""
+    _bricks.invalidate_comptes_cache(org_id)
+    return {"success": True}
+
+
+@app.get("/api/org/{org_id}/folder")
+async def org_folder(org_id: str):
+    """Résout uniquement le dossier Drive d'une org — contrairement à GET /api/org/{org_id},
+    ne nécessite pas qu'une brique Organisation existe (cas de smcspl/smcdemo, créées avant
+    l'existence de cette brique). Utilisé par ConnectorIdentity.js::identityCreateCompte, qui a
+    besoin du folderId pour écrire directement via DriveApp (contournement du blocage de quota
+    du compte de service, voir connector_ownstorage.py)."""
+    folder_id = _bricks._folder_id_for_org(org_id)
+    if not folder_id:
+        return JSONResponse({"success": False, "errorCode": "unknown_org"}, status_code=404)
+    return {"success": True, "folderId": folder_id}
+
+
 @app.get("/api/org/{org_id}/comptes")
 async def org_list_comptes(org_id: str):
     """Liste les comptes patrimoine d'une organisation — utilisé par le Navigator et
@@ -835,6 +1235,18 @@ async def org_list_comptes(org_id: str):
     if not _bricks._folder_id_for_org(org_id):
         return JSONResponse({"success": False, "errorCode": "unknown_org"}, status_code=404)
     return {"success": True, "comptes": _bricks.list_comptes(org_id)}
+
+
+@app.delete("/api/org/{org_id}/comptes/{compte_uid}")
+async def org_delete_compte(org_id: str, compte_uid: str):
+    """Met à la corbeille un compte patrimoine (jamais de suppression définitive) — voir
+    bricks.delete_compte. Fonctionne même là où la création reste bloquée
+    (storageQuotaExceeded), la suppression ne consomme pas de quota Drive."""
+    result = _bricks.delete_compte(org_id, compte_uid)
+    if result.get('success'):
+        return result
+    status = 404 if result.get('errorCode') in ('unknown_org', 'compte_introuvable') else 400
+    return JSONResponse(result, status_code=status)
 
 
 @app.get("/api/org/{org_id}/bricks")
@@ -848,6 +1260,72 @@ async def org_bricks(org_id: str, type: Optional[str] = None):
     return {"success": True, "bricks": _bricks.list_bricks(folder_id, type)}
 
 
+@app.get("/api/analyzor/rules")
+async def analyzor_rules(orgId: str):
+    """Rule bricks RÉELLES du module de l'org (ledger_api/modules/{module}/bricks/*.json) —
+    jamais exposées en HTTP jusqu'ici, seulement lues côté serveur par understand.py pour le
+    chat (2026-08-08). Sert à afficher les vraies règles côté Navigator (permanent, lisible),
+    au lieu des Rules de démo codées en dur (getTestPatrimoine côté Navigator). Le vecteur
+    _embedding (768 floats) est retiré — inutile et lourd pour un simple affichage."""
+    import understand as _und
+    module = _und._get_module(orgId)
+    bricks = _und._get_bricks_raw(module)
+    cleaned = [
+        {k: v for k, v in b.items() if not k.startswith('_')}
+        for b in bricks
+    ]
+    return {"success": True, "module": module, "rules": cleaned}
+
+
+@app.get("/api/ownstorage/journal")
+async def ownstorage_journal_get(orgId: str):
+    """Contenu actuel du journal ledger-cli depuis le Drive de l'organisation — jamais le
+    VPS (2026-08-10, retour de Stéphane : "le journal doit être dans le storage de l'orga,
+    pas sur le VPS"). Voir own_storage_journal.py pour le protocole de bootstrap en 2 temps."""
+    import own_storage_journal as _oj
+    result = _oj.get_journal(orgId)
+    status = 200 if result.get('success') else (404 if result.get('errorCode') == 'unknown_org' else 409)
+    return JSONResponse(result, status_code=status)
+
+
+@app.post("/api/ownstorage/journal")
+async def ownstorage_journal_set(payload: dict):
+    """Remplace le contenu du journal dans le Drive de l'org. Body: {orgId, content}."""
+    import own_storage_journal as _oj
+    org_id = payload.get('orgId', '')
+    content = payload.get('content', '')
+    if not org_id:
+        return JSONResponse({'success': False, 'error': 'orgId requis'}, status_code=400)
+    result = _oj.set_journal(org_id, content)
+    status = 200 if result.get('success') else (404 if result.get('errorCode') == 'unknown_org' else 409)
+    return JSONResponse(result, status_code=status)
+
+
+@app.post("/api/ownstorage/releve/append")
+async def ownstorage_releve_append(payload: dict):
+    """JournaldeBanque (2026-08-14) — ajoute un snapshot sanctuarisé (immuable, jamais réécrit)
+    au relevé `name` de l'org. Body: {orgId, name, record}. Voir own_storage_releves.py pour le
+    protocole (append-only, repli local pour les orgs sans dossier Drive)."""
+    import own_storage_releves as _or
+    org_id = payload.get('orgId', '')
+    name = payload.get('name', '')
+    record = payload.get('record')
+    if not org_id or not name or not isinstance(record, dict):
+        return JSONResponse({'success': False, 'error': 'orgId, name, record (objet) requis'}, status_code=400)
+    result = _or.append_releve(org_id, name, record)
+    status = 200 if result.get('success') else 409
+    return JSONResponse(result, status_code=status)
+
+
+@app.get("/api/ownstorage/releve")
+async def ownstorage_releve_get(orgId: str, name: str):
+    """Relit un relevé sanctuarisé déjà écrit (vérification/debug). Body absent volontairement
+    (GET) : jamais utilisé pour reconstruire le journal, uniquement pour prouver/consulter."""
+    import own_storage_releves as _or
+    records = _or.read_releve(orgId, name)
+    return JSONResponse({'success': True, 'records': records, 'count': len(records)})
+
+
 @app.get("/api/connectors/resolve")
 async def connectors_resolve(etablissement: str, nature: str, orgId: Optional[str] = None, module: Optional[str] = None):
     """Résout les connectors compatibles pour un établissement + une nature de compte
@@ -855,6 +1333,421 @@ async def connectors_resolve(etablissement: str, nature: str, orgId: Optional[st
     l'utilisateur ni le Navigator directement (§2)."""
     matches = resolve_connectors(etablissement, nature, org_id=orgId, module=module)
     return {"success": True, "connectors": matches}
+
+
+@app.post("/api/connectors/resolve-batch")
+async def connectors_resolve_batch(request: Request):
+    """Version batch de /api/connectors/resolve (2026-08-02, retour de Stéphane : "le chargement
+    patrimoine est toujours trop long... on dirait que c'est planté") — root cause trouvée :
+    Executor::_patrimoine_view_data faisait UN appel HTTP séparé PAR COMPTE (jusqu'à 19-20 pour
+    smcspl/smcdemo) juste pour connaître le syncMode, alors que resolve_connectors lit les MÊMES
+    briques Rule (cache déjà partagé par dossier, `_cached_bricks`) pour tous. Un seul appel
+    ici, une seule fois le scan Drive à froid s'il l'est, jamais 19 allers-retours réseau
+    séquentiels pour la même donnée sous-jacente.
+    Body: {orgId, module?, comptes: [{etablissement, nature}, ...]} — renvoie un tableau dans le
+    MÊME ORDRE que `comptes` en entrée (jamais une correspondance par nom, qui casserait sur des
+    doublons établissement+nature)."""
+    body = await request.json()
+    org_id = body.get("orgId")
+    module = body.get("module")
+    comptes = body.get("comptes") or []
+    results = [
+        resolve_connectors(c.get("etablissement"), c.get("nature"), org_id=org_id, module=module)
+        for c in comptes
+    ]
+    return {"success": True, "results": results}
+
+
+@app.get("/api/module/{module}/folder")
+async def module_folder(module: str):
+    """Dossier Drive d'un module (lecture seule, aucune écriture) — utilisé par
+    `identityEnsureConnectorRule` (ConnectorIdentity.js) pour savoir où écrire une nouvelle
+    brique Rule connector via DriveApp (le compte de service Analyzor ne peut créer aucun
+    nouveau fichier Drive, `storageQuotaExceeded`, voir bricks.create_compte — même
+    contournement Apps Script que pour les briques Compte)."""
+    folder_id = MODULE_FOLDER_ID.get(module)
+    if not folder_id:
+        return JSONResponse({"success": False, "errorCode": "unknown_module"}, status_code=404)
+    return {"success": True, "folderId": folder_id}
+
+
+@app.post("/api/connectors/invalidate-cache")
+async def connectors_invalidate_cache(request: Request):
+    """Invalide le cache de résolution connector d'un module — appelé juste après qu'une
+    brique Rule ait été écrite via DriveApp (identityEnsureConnectorRule), sinon invisible
+    jusqu'à 6h (TTL de _cached_bricks)."""
+    body = await request.json()
+    module = body.get("module")
+    if not module:
+        return JSONResponse({"success": False, "error": "module requis"}, status_code=400)
+    invalidate_module_cache(module)
+    return {"success": True}
+
+
+@app.post("/api/copro/appel-fonds")
+async def copro_appel_fonds(payload: dict):
+    """Émet un appel de fonds trimestriel pour une org copropriété.
+
+    Lit les quotes-parts depuis rule_0009_appel_fonds.json, poste la transaction
+    multi-jambes dans le journal (via /api/ledger/import), et retourne un aperçu.
+
+    Body: {orgId, date?: "YYYY/MM/DD", libelle?: str, dryRun?: bool}
+    La date et le libellé viennent de rule_0009 si non fournis (prochain Q non comptabilisé).
+    """
+    org_id = payload.get('orgId', '').strip()
+    if not org_id:
+        return JSONResponse({'success': False, 'error': 'orgId requis'}, status_code=400)
+
+    # Lire la règle d'appel (rule_0009)
+    import json as _json
+    from pathlib import Path as _Path
+    rule_path = _Path(f'/home/ubuntu/ledger_api/modules/compta_copro/bricks/rule_0009_appel_fonds.json')
+    if not rule_path.exists():
+        return JSONResponse({'success': False, 'error': 'rule_0009_appel_fonds.json absent'}, status_code=404)
+    rule = _json.loads(rule_path.read_text())
+
+    # Déterminer le prochain appel à émettre
+    date_appel = payload.get('date')
+    libelle = payload.get('libelle')
+    if not date_appel or not libelle:
+        next_q = next(
+            (s for s in rule.get('schedule_2026', []) if s['statut'] == 'à émettre'),
+            None
+        )
+        if not next_q:
+            return JSONResponse({'success': False, 'error': 'Aucun appel à émettre dans rule_0009 (tous marqués comptabilisés)'}, status_code=400)
+        date_appel = date_appel or next_q['date']
+        libelle = libelle or next_q['libelle']
+
+    copros = rule.get('copropriétaires', [])
+    compte_prov = rule.get('compte_provision', '701:Prov charges')
+    total = round(sum(c['montant_trim'] for c in copros), 2)
+
+    # Construire les jambes
+    legs = [
+        {'compte': f"{c['compte']}:{c['label']}", 'amount': c['montant_trim']}
+        for c in copros
+    ]
+    legs.append({'compte': compte_prov, 'amount': -total})
+
+    # Vérification d'équilibre
+    if abs(sum(l['amount'] for l in legs)) > 0.01:
+        return JSONResponse({'success': False, 'error': f'Jambes déséquilibrées (total={sum(l["amount"] for l in legs):.2f})'}, status_code=400)
+
+    dry_run = payload.get('dryRun', False)
+    if dry_run:
+        return {
+            'success': True,
+            'dryRun': True,
+            'date': date_appel,
+            'libelle': libelle,
+            'total': total,
+            'legs': legs,
+        }
+
+    # Poster dans le journal
+    try:
+        resp = requests.post(
+            f'{LEDGER_API_URL}/api/ledger/import',
+            json={'orgId': org_id, 'entries': [{'date': date_appel, 'libelle': libelle, 'legs': legs}]},
+            timeout=15,
+        )
+        result = resp.json()
+    except Exception as e:
+        return JSONResponse({'success': False, 'error': str(e)}, status_code=500)
+
+    if not result.get('success'):
+        return JSONResponse({'success': False, 'error': result.get('error')}, status_code=400)
+
+    return {
+        'success': True,
+        'date': date_appel,
+        'libelle': libelle,
+        'total': total,
+        'legs': legs,
+        'email_pending': [
+            {'copro': c['label'], 'compte': c['compte'], 'montant': c['montant_trim'], 'email': c.get('email')}
+            for c in copros
+        ],
+        'note': 'Écriture postée. Remplir les champs email dans rule_0009 puis appeler /api/copro/appel-fonds/emails pour envoyer les avis.',
+    }
+
+
+@app.get("/api/copro/appel-fonds/email-preview")
+async def copro_appel_fonds_email_preview(orgId: str, trimestre: str = None):
+    """Prépare les emails d'appel de fonds sans les envoyer.
+
+    Logique de routage : si mandataire.email existe → destinataire = mandataire,
+    sinon → destinataire = email direct du copropriétaire.
+
+    Retourne la liste {to, copro, compte, montant, subject, body} prête à envoyer
+    via MailApp (Communicator) ou tout autre transport.
+
+    Query: orgId (requis), trimestre (ex: "Q4" — sinon premier Q 'à émettre')
+    """
+    from pathlib import Path as _Path
+    import json as _json
+
+    rule_path = _Path('/home/ubuntu/ledger_api/modules/compta_copro/bricks/rule_0009_appel_fonds.json')
+    if not rule_path.exists():
+        return JSONResponse({'success': False, 'error': 'rule_0009 absent'}, status_code=404)
+    rule = _json.loads(rule_path.read_text())
+
+    # Trouver le trimestre cible
+    schedule = rule.get('schedule_2026', [])
+    if trimestre:
+        q = next((s for s in schedule if s['trimestre'] == trimestre), None)
+    else:
+        q = next((s for s in schedule if s['statut'] == 'à émettre'), None)
+    if not q:
+        return JSONResponse({'success': False, 'error': 'Trimestre introuvable ou tous comptabilisés'}, status_code=400)
+
+    org = _bricks.get_org(orgId)
+    iban = (((org or {}).get('contenu') or {}).get('iban')) \
+        or rule.get('iban_copropriete') \
+        or '(IBAN à définir — tapez "iban FRXX..." dans le Communicator)'
+    date_str = q['date'].replace('/', '-')  # YYYY-MM-DD pour l'email
+    emails = []
+    for c in rule.get('copropriétaires', []):
+        mand = c.get('mandataire') or {}
+        if mand and mand.get('email'):
+            to = mand['email']
+            destinataire = f"{mand.get('nom', 'Mandataire')} (pour {c['label']})"
+        else:
+            to = c.get('email') or ''
+            destinataire = c['label']
+
+        if not to:
+            emails.append({'copro': c['label'], 'compte': c['compte'], 'montant': c['montant_trim'],
+                           'to': None, 'error': 'email manquant'})
+            continue
+
+        montant = c['montant_trim']
+        subject = f"Appel de fonds {q['trimestre']} 2026 — SDC 45 Boulevard Poniatowski"
+        body = (
+            f"Madame, Monsieur,\n\n"
+            f"Nous vous adressons l'appel de fonds du {q['libelle']} pour la copropriété "
+            f"du 45 Boulevard Poniatowski, Paris 12e (SDC).\n\n"
+            f"Copropriétaire : {c['label']}\n"
+            f"Compte : {c['compte']}\n"
+            f"Montant dû : {montant:.2f} EUR\n"
+            f"Date d'exigibilité : {date_str}\n\n"
+            f"Virement à effectuer :\n"
+            f"  IBAN : {iban}\n"
+            f"  Référence : APPEL {q['trimestre']}26 {c['compte']}\n\n"
+            f"Cordialement,\n"
+            f"Le syndic bénévole — SDC 45 Poniatowski"
+        )
+        emails.append({
+            'copro': c['label'],
+            'compte': c['compte'],
+            'montant': montant,
+            'to': to,
+            'destinataire': destinataire,
+            'subject': subject,
+            'body': body,
+        })
+
+    total = sum(e['montant'] for e in emails)
+    return {
+        'success': True,
+        'trimestre': q['trimestre'],
+        'date': q['date'],
+        'total': total,
+        'emails': emails,
+    }
+
+
+@app.get("/api/copro/budget")
+async def copro_budget(orgId: str):
+    """Retourne le budget prévisionnel + dépenses réalisées de l'année courante.
+
+    Lit rule_0009 (budget_annuel_eur, schedule) + interroge le journal ledger
+    sur les comptes 6xx pour obtenir les dépenses réalisées.
+    """
+    import json as _json
+    from pathlib import Path as _Path
+    from datetime import datetime as _dt
+
+    rule_path = _Path('/home/ubuntu/ledger_api/modules/compta_copro/bricks/rule_0009_appel_fonds.json')
+    if not rule_path.exists():
+        return JSONResponse({'success': False, 'error': 'rule_0009 absent'}, status_code=404)
+    rule = _json.loads(rule_path.read_text())
+
+    year = _dt.now().year
+    budget = rule.get('budget_annuel_eur', 0)
+    trimestres = len([s for s in rule.get('schedule_2026', []) if s['statut'] == 'comptabilisé'])
+    encaisse = trimestres * rule.get('montant_trimestriel_eur', 0)
+
+    # Dépenses réelles (comptes 6xx) via ledger_api
+    try:
+        resp = requests.post(
+            f'{LEDGER_API_URL}/api/ledger/query',
+            json={'orgId': orgId, 'command': 'balance', 'filters': ['6'],
+                  'beginDate': f'{year}/01/01', 'endDate': f'{year+1}/01/01'},
+            timeout=15,
+        )
+        output = resp.json().get('output', '')
+        # Parser le total final (dernière ligne avec EUR et pas de compte)
+        depenses = 0.0
+        for line in output.splitlines():
+            m = __import__('re').search(r'(-?[\d,]+\.\d{2})\s+EUR\s*$', line)
+            if m:
+                try:
+                    depenses = abs(float(m.group(1).replace(',', '')))
+                except Exception:
+                    pass
+    except Exception:
+        depenses = None
+
+    return {
+        'success': True,
+        'year': year,
+        'budget_annuel': budget,
+        'montant_trimestriel': rule.get('montant_trimestriel_eur', 0),
+        'trimestres_comptabilises': trimestres,
+        'encaisse_prevu': encaisse,
+        'depenses_realisees': depenses,
+        'reste': round(budget - (depenses or 0), 2),
+        'taux': round((depenses or 0) / budget * 100, 1) if budget else 0,
+    }
+
+
+@app.post("/api/analyzor/understand/file")
+async def analyzor_understand_file(
+    orgId: str = Form(...),
+    message: str = Form(''),
+    lastMessage: str = Form(''),
+    file: UploadFile = File(...),
+):
+    """Variante multipart : reçoit un fichier, l'extrait via Docling, puis understand().
+
+    Formats supportés : PDF, DOCX, XLSX, XLS, CSV.
+    Body (multipart/form-data): orgId, message?, lastMessage?, file
+    """
+    import understand as _und
+    import tempfile, os
+
+    if not orgId.strip():
+        return JSONResponse({'success': False, 'error': 'orgId requis'}, status_code=400)
+
+    suffix = os.path.splitext(file.filename or 'doc')[1].lower() or '.bin'
+    with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
+        tmp.write(await file.read())
+        tmp_path = tmp.name
+
+    try:
+        if DOCLING_AVAILABLE:
+            doc_text = connector_docling.extract_text(tmp_path)
+        else:
+            # Fallback texte brut pour CSV / fichiers texte
+            try:
+                with open(tmp_path, encoding='utf-8', errors='replace') as f:
+                    doc_text = f.read(8000)
+            except Exception:
+                doc_text = ''
+    finally:
+        os.unlink(tmp_path)
+
+    user_msg = message.strip() or f'Analyse ce document : {file.filename}'
+    try:
+        result = _und.understand(orgId.strip(), user_msg, lastMessage, doc_text)
+        return {'success': True, 'filename': file.filename, **result}
+    except Exception as e:
+        return JSONResponse({'success': False, 'error': str(e)}, status_code=500)
+
+
+@app.post("/api/analyzor/understand")
+async def analyzor_understand(payload: dict):
+    """Interprète un message utilisateur dans le contexte brique d'une org PreCogn.
+
+    Chaîne : bricks org → LLMPrecogn → Ollama (fallback) → exécution query si besoin.
+    Si documentText est fourni (texte pré-extrait par Docling), il est injecté dans le contexte.
+
+    Body: {orgId, message, lastMessage?: str, documentText?: str}
+    Retourne: {success, intent, response?, libelle?, montant?, sens?, ...}
+    """
+    import understand as _und
+    org_id   = payload.get('orgId', '').strip()
+    message  = payload.get('message', '').strip()
+    if not org_id or not message:
+        return JSONResponse({'success': False, 'error': 'orgId et message requis'}, status_code=400)
+    last_msg   = payload.get('lastMessage', '')
+    doc_text   = payload.get('documentText', '')
+    doc_b64    = payload.get('documentBase64', '')
+    doc_fname  = payload.get('documentFilename', '')
+    try:
+        result = _und.understand(org_id, message, last_msg, doc_text, doc_b64, doc_fname)
+        return {'success': True, **result}
+    except Exception as e:
+        return JSONResponse({'success': False, 'error': str(e)}, status_code=500)
+
+
+@app.post("/api/analyzor/embed-bricks")
+async def analyzor_embed_bricks(payload: dict):
+    """Génère ou met à jour les embeddings (_embedding) de toutes les briques JSON.
+
+    Body: {module?: str}   — si absent, traite tous les modules.
+    Retourne: {success, results: {filename: statut}}
+    """
+    import embed_bricks as _emb
+    module = payload.get('module') or None
+    try:
+        results = _emb.embed_all_bricks(module=module)
+        return {'success': True, 'results': results}
+    except Exception as e:
+        return JSONResponse({'success': False, 'error': str(e)}, status_code=500)
+
+
+@app.post("/api/precogn/facilitateur")
+async def precogn_facilitateur(payload: dict):
+    """Génère / rafraîchit le sheet facilitateur PreCogn pour une organisation.
+
+    Body: {orgId, sheetId?: str, rebuild?: bool}
+    - Premier appel : fournir sheetId (créé manuellement, SA partagé en éditeur).
+    - Appels suivants : sheetId optionnel (mémorisé dans data/{orgId}_facilitateur.json).
+    """
+    import precogn_facilitateur as _fac
+    org_id = payload.get('orgId', '').strip()
+    if not org_id:
+        return JSONResponse({'success': False, 'error': 'orgId requis'}, status_code=400)
+    sheet_id = payload.get('sheetId')
+    rebuild  = payload.get('rebuild', False)
+    try:
+        result = _fac.run(org_id, sheet_id=sheet_id, rebuild=rebuild)
+        # Marquer le facilitateur comme généré dans Docling (ne sera plus suggéré)
+        try:
+            docling_registry.mark_facilitateur_generated(org_id, sheet_id=result.get('sheetId'))
+        except Exception:
+            pass
+        return {'success': True, **result}
+    except ValueError as e:
+        return JSONResponse({'success': False, 'error': str(e)}, status_code=400)
+    except Exception as e:
+        return JSONResponse({'success': False, 'error': str(e)}, status_code=500)
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Docling — registre central (stats, historique, facilitateur)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@app.get("/api/docling/stats")
+async def docling_stats(orgId: str = None):
+    """Statistiques du registre Docling — globales ou filtrées par orgId."""
+    return {"success": True, "stats": docling_registry.get_stats(orgId)}
+
+
+@app.get("/api/docling/orgs")
+async def docling_orgs():
+    """Liste toutes les organisations enregistrées dans Docling."""
+    return {"success": True, "orgs": docling_registry.list_orgs()}
+
+
+@app.get("/archi", response_class=HTMLResponse)
+async def archi():
+    """Diagramme d'architecture PreCogn/VPS généré en temps réel."""
+    from archi_template import generate_archi_html
+    return HTMLResponse(generate_archi_html())
 
 
 if __name__ == "__main__":

@@ -1,0 +1,72 @@
+{
+  "tata": {
+    "uid": "org_3f768beecf4040e988d1",
+    "backend": "gdrive",
+    "folderId": "1V6kMQq4b11IoCa-Fit3BaFRFSbQaiash"
+  },
+  "smcspl": {
+    "uid": "org_87d09fff245c41099908",
+    "backend": "gdrive",
+    "folderId": "1o0RBjT4MyCDdusgLqdGbvNF7RGglURn2"
+  },
+  "smcdemo": {
+    "uid": "org_032fbc839d8544499218",
+    "backend": "gdrive",
+    "folderId": "1LMaVj80oQBF7jfpiAyYNaIla3BiI8OuI"
+  },
+  "precogn": {
+    "uid": "org_8a37adc7ee7d46bca8cd",
+    "backend": "gdrive",
+    "folderId": "135SXvs9tRRsycS3GaF1svBFiLfjmZZj5"
+  },
+  "structory": {
+    "uid": "org_ca3657364c6c42d2b809",
+    "backend": "gdrive",
+    "folderId": "1vYWtlIxTzZBB4e29J8ymZSdZQxyVkzqz"
+  },
+  "compta_copro": {
+    "uid": "org_891c611d67fe4550b720",
+    "backend": "gdrive",
+    "folderId": "1ll52W0IaTt9ZBbKd6VQ0334oj7-toxVA"
+  },
+  "suivre_mes_comptes": {
+    "uid": "org_c2c041040a8c46539fb5",
+    "backend": "gdrive",
+    "folderId": "1T0VF9whWccRbMmmVB3rJpmNAjNnFd1nF"
+  },
+  "miroa": {
+    "uid": "org_75654b8d798d4f9a845e",
+    "backend": "gdrive",
+    "folderId": "1Vm5tIhWbZ1VKFTMi6fh4PvpcuPzKdMRd"
+  },
+  "miroadev": {
+    "uid": "org_d500a423bd3147dd8122",
+    "backend": "gdrive",
+    "folderId": "1oVkLbPDgdyuJflTG-cFbHEOBtYNtnmsn"
+  },
+  "45ponia": {
+    "uid": "org_b7c5e1e1782f4ab09123",
+    "backend": "gdrive",
+    "folderId": "1iO4xzeW_I6SkMp9X9HaBtTNkzmJPZOSu"
+  },
+  "structorydemo": {
+    "uid": "org_45601e5bc6c642258429",
+    "backend": "gdrive",
+    "folderId": "1IGZnndem-BM0RlM47rQv2OrXlnLs15Ls"
+  },
+  "precogndemo": {
+    "uid": "org_cda47ef315de4c61a01e",
+    "backend": "gdrive",
+    "folderId": "1TN3t52iwfPRy9gYqtOpGjAHZbMWKf1uL"
+  },
+  "structory_demo": {
+    "uid": "demo",
+    "backend": "gdrive",
+    "folderId": "1W3DemWszwZiRmnYT063ROuhSL9yW0zYB"
+  },
+  "jdb": {
+    "uid": "org_b317c12f621a42129b7c",
+    "backend": "gdrive",
+    "folderId": "1k3Ox78IrGL2vJBhDioDSFZx5WSYWAJu4"
+  }
+}
