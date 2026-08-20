@@ -10,3 +10,14 @@ gdrive-service-account.json
 
 # Copie d'un vrai classeur client — pas public.
 test_copro.xlsx
+
+# menage-preseed: journaux internes & donnees orgs — jamais publics
+journals/
+hook_debug/
+data/_docling_analyses.json
+data/_org_brick_embeddings.json
+data/_org_registry.json
+.env
+*.env
+*.bak-*
+CLAUDE.md
