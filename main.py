@@ -421,7 +421,7 @@ from fastapi.responses import HTMLResponse
 import journal as _journal
 
 SUBSCRIPTIONS_URL = os.environ.get('SUBSCRIPTIONS_URL', 'http://localhost:8082')
-SUBSCRIPTIONS_SERVICE_KEY = '***REMOVED_SERVICE_KEY***'
+SUBSCRIPTIONS_SERVICE_KEY = ''
 
 
 def _can_read_journal(requester_org_id, target_org_id):
@@ -1748,6 +1748,29 @@ async def archi():
     """Diagramme d'architecture PreCogn/VPS généré en temps réel."""
     from archi_template import generate_archi_html
     return HTMLResponse(generate_archi_html())
+
+
+@app.api_route("/api/jdb/{path:path}", methods=["GET", "POST"])
+async def _proxy_jdb(path: str, request: Request):
+    """Relais vers jdb_api (port 8086) : le worker Cloudflare proxifie tout /api/* vers Analyzor,
+    donc /api/jdb/* doit etre reexpedie ici vers le service JournalDeBanque."""
+    url = "http://localhost:8086/api/jdb/" + path
+    params = dict(request.query_params)
+    body = await request.body()
+    fwd_headers = {"Content-Type": "application/json"}
+    if request.headers.get("X-Service-Key"):
+        fwd_headers["X-Service-Key"] = request.headers["X-Service-Key"]
+    try:
+        if request.method == "GET":
+            r = requests.get(url, params=params, headers=fwd_headers, timeout=60)
+        else:
+            r = requests.post(url, params=params, data=body, headers=fwd_headers, timeout=60)
+    except requests.RequestException as e:
+        return JSONResponse({"success": False, "error": f"jdb_api injoignable : {e}"}, status_code=502)
+    try:
+        return JSONResponse(r.json(), status_code=r.status_code)
+    except ValueError:
+        return JSONResponse({"success": False, "error": "reponse non-JSON de jdb_api"}, status_code=502)
 
 
 if __name__ == "__main__":
