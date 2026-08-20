@@ -22,7 +22,7 @@ JOURNALS_DIR = os.path.join(os.path.dirname(__file__), 'journals')
 SERVICE_ACCOUNT_FILE = os.path.join(os.path.dirname(__file__), 'gdrive-service-account.json')
 SCOPES = ['https://www.googleapis.com/auth/drive']
 
-# Dossier "Structory" dans le Drive de Stéphane (owner@example.com), déjà partagé avec le
+# Dossier "Structory" dans le Drive du propriétaire de la plateforme, déjà partagé avec le
 # compte de service (utilisé par connector_ownstorage.py pour les briques org/module) — sans
 # ça, un Doc créé par le compte de service serait invisible pour lui (Drive isolé du service
 # account). Les journaux techniques y vont par défaut, dans un sous-dossier dédié.
